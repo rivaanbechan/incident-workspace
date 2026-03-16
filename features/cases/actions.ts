@@ -4,9 +4,9 @@ import type {
   InvestigationSeverity,
   InvestigationStatus,
 } from "@/lib/contracts/investigations"
-import type { InvestigationEntityKind } from "@/lib/contracts/investigationEntities"
 import { hasOrgPermission } from "@/lib/auth/permissions"
 import { getCurrentUser } from "@/lib/auth/access"
+import { isValidInvestigationEntityKind } from "@/lib/contracts/validations"
 import { getCaseMembership, upsertCaseMembership } from "@/lib/db/auth"
 import {
   deleteInvestigationCaseRecord,
@@ -38,20 +38,6 @@ function readField(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim()
 }
 
-function isValidEntityKind(value: string): value is InvestigationEntityKind {
-  return (
-    value === "domain" ||
-    value === "email" ||
-    value === "file" ||
-    value === "host" ||
-    value === "identity" ||
-    value === "ip" ||
-    value === "process" ||
-    value === "service" ||
-    value === "url" ||
-    value === "other"
-  )
-}
 
 async function requireCurrentUser() {
   const user = await getCurrentUser()
@@ -221,7 +207,7 @@ export async function createInvestigationEntityAction(formData: FormData) {
   const label = readField(formData, "label")
   const value = readField(formData, "value")
 
-  if (!investigationId || !value || !label || !isValidEntityKind(kind)) {
+  if (!investigationId || !value || !label || !isValidInvestigationEntityKind(kind)) {
     return
   }
 

@@ -2,11 +2,15 @@ import { NextResponse } from "next/server"
 
 import { requireApiCasePermissionByCaseId } from "@/lib/auth/access"
 import type {
-  InvestigationCaseRecordKind,
   InvestigationCaseRecordPayload,
-  InvestigationCaseRecordSourceType,
 } from "@/lib/contracts/caseRecords"
 import type { EntityRef } from "@/lib/contracts/entities"
+import {
+  isValidCaseRecordKind,
+  isValidCaseRecordSourceType,
+  normalizeEntityRefs,
+  normalizeRecordPayload,
+} from "@/lib/contracts/validations"
 import {
   createInvestigationCaseRecord,
   listInvestigationCaseRecords,
@@ -17,53 +21,6 @@ type RouteContext = {
   params: Promise<{
     caseId: string
   }>
-}
-
-function isValidKind(value: string): value is InvestigationCaseRecordKind {
-  return (
-    value === "action" ||
-    value === "decision" ||
-    value === "evidence" ||
-    value === "finding" ||
-    value === "hypothesis" ||
-    value === "timeline-event"
-  )
-}
-
-function isValidSourceType(value: string): value is InvestigationCaseRecordSourceType {
-  return (
-    value === "action-item" ||
-    value === "artifact" ||
-    value === "case-record" ||
-    value === "evidence-set" ||
-    value === "incident-card" ||
-    value === "note" ||
-    value === "timeline-entry"
-  )
-}
-
-function normalizeEntityRefs(value: unknown) {
-  if (!Array.isArray(value)) {
-    return []
-  }
-
-  return value.filter((item): item is EntityRef => {
-    return (
-      typeof item === "object" &&
-      item !== null &&
-      typeof (item as EntityRef).id === "string" &&
-      typeof (item as EntityRef).kind === "string" &&
-      typeof (item as EntityRef).label === "string"
-    )
-  })
-}
-
-function normalizePayload(value: unknown) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return {}
-  }
-
-  return value as InvestigationCaseRecordPayload
 }
 
 export async function GET(_request: Request, context: RouteContext) {
@@ -126,11 +83,11 @@ export async function POST(request: Request, context: RouteContext) {
     )
   }
 
-  if (!record.kind || !isValidKind(record.kind)) {
+  if (!record.kind || !isValidCaseRecordKind(record.kind)) {
     return NextResponse.json({ error: "Invalid case record kind." }, { status: 400 })
   }
 
-  if (!record.sourceType || !isValidSourceType(record.sourceType)) {
+  if (!record.sourceType || !isValidCaseRecordSourceType(record.sourceType)) {
     return NextResponse.json({ error: "Invalid case record source type." }, { status: 400 })
   }
 
@@ -146,7 +103,7 @@ export async function POST(request: Request, context: RouteContext) {
       deepLink: record.deepLink,
       investigationId: caseId,
       kind: record.kind,
-      payload: normalizePayload(record.payload),
+      payload: normalizeRecordPayload(record.payload),
       relatedEntities: normalizeEntityRefs(record.relatedEntities),
       sourceId: record.sourceId,
       sourceModule: record.sourceModule,

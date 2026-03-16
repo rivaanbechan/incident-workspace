@@ -7,6 +7,7 @@ import {
   RoomAudioRenderer,
   VideoTrack,
   useLocalParticipant,
+  useSpeakingParticipants,
   useTracks,
 } from "@livekit/components-react"
 import type { TrackReference } from "@livekit/components-react"
@@ -31,6 +32,7 @@ type LiveSessionPanelProps = {
   isViewerEnabled?: boolean
   onActiveShareViewChange: (view: LiveShareView) => void
   onScreenSharesChange: (screenShares: ActiveScreenShare[]) => void
+  onSpeakersChange?: (participantIds: string[]) => void
   roomId: string
   user: PresenceUser
 }
@@ -85,15 +87,18 @@ function LiveSessionViewer({
   isViewerEnabled = true,
   onActiveShareViewChange,
   onScreenSharesChange,
+  onSpeakersChange,
   showControls = true,
 }: {
   activeShareView: LiveShareView
   isViewerEnabled?: boolean
   onActiveShareViewChange: (view: LiveShareView) => void
   onScreenSharesChange: (screenShares: ActiveScreenShare[]) => void
+  onSpeakersChange?: (participantIds: string[]) => void
   showControls?: boolean
 }) {
-  const { isScreenShareEnabled, localParticipant } = useLocalParticipant()
+  const { isMicrophoneEnabled, isScreenShareEnabled, localParticipant } = useLocalParticipant()
+  const speakingParticipants = useSpeakingParticipants()
   const screenTracks = useTracks([Track.Source.ScreenShare]) as TrackReference[]
   const [isTogglingShare, setIsTogglingShare] = useState(false)
   const [toggleError, setToggleError] = useState<string | null>(null)
@@ -128,6 +133,18 @@ function LiveSessionViewer({
   useEffect(() => {
     isScreenShareEnabledRef.current = isScreenShareEnabled
   }, [isScreenShareEnabled])
+
+  useEffect(() => {
+    onSpeakersChange?.(speakingParticipants.map((p) => p.identity))
+  }, [speakingParticipants, onSpeakersChange])
+
+  const handleToggleMic = async () => {
+    try {
+      await localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled)
+    } catch {
+      // ignore mic toggle errors
+    }
+  }
 
   useEffect(() => {
     if (!isViewerEnabled) {
@@ -443,6 +460,26 @@ function LiveSessionViewer({
                   : "Share Screen to Room"}
           </button>
 
+          <button
+            onClick={() => {
+              void handleToggleMic()
+            }}
+            style={{
+              width: "100%",
+              marginTop: 10,
+              border: "none",
+              borderRadius: 12,
+              background: isMicrophoneEnabled ? "#ef4444" : "#ffffff",
+              color: isMicrophoneEnabled ? "#ffffff" : "#0f172a",
+              padding: "12px 14px",
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            {isMicrophoneEnabled ? "Mute Mic" : "Unmute Mic"}
+          </button>
+
           <p
             style={{
               margin: "10px 0 0",
@@ -452,8 +489,8 @@ function LiveSessionViewer({
             }}
           >
             {canScreenShare
-              ? "Published screen shares appear in the live viewer stack. Use 0 for gallery and 1-9 to focus a share."
-              : "This browser can join the live session, but it cannot publish a screen share."}
+              ? "Voice is active — use the mic button to mute. Published screen shares appear in the live viewer stack. Use 0 for gallery and 1-9 to focus a share."
+              : "This browser can join the live session with voice, but it cannot publish a screen share."}
           </p>
 
           {toggleError ? (
@@ -486,6 +523,7 @@ export function LiveSessionPanel({
   isViewerEnabled = true,
   onActiveShareViewChange,
   onScreenSharesChange,
+  onSpeakersChange,
   roomId,
 }: LiveSessionPanelProps) {
   const [error, setError] = useState<string | null>(null)
@@ -590,7 +628,7 @@ export function LiveSessionPanel({
             serverUrl={session.serverUrl}
             token={session.token}
             video={false}
-            audio={false}
+            audio={true}
           >
             <ConnectedInlineScreenShareButton onError={setError} />
             <LiveSessionViewer
@@ -598,6 +636,7 @@ export function LiveSessionPanel({
               isViewerEnabled={isViewerEnabled}
               onActiveShareViewChange={onActiveShareViewChange}
               onScreenSharesChange={onScreenSharesChange}
+              onSpeakersChange={onSpeakersChange}
               showControls={false}
             />
           </LiveKitRoom>
@@ -765,6 +804,7 @@ export function LiveSessionPanel({
                 isViewerEnabled={isViewerEnabled}
                 onActiveShareViewChange={onActiveShareViewChange}
                 onScreenSharesChange={onScreenSharesChange}
+                onSpeakersChange={onSpeakersChange}
                 showControls
               />
             </div>
@@ -774,6 +814,7 @@ export function LiveSessionPanel({
               isViewerEnabled={isViewerEnabled}
               onActiveShareViewChange={onActiveShareViewChange}
               onScreenSharesChange={onScreenSharesChange}
+              onSpeakersChange={onSpeakersChange}
               showControls={false}
             />
           )}
@@ -788,8 +829,9 @@ function ConnectedInlineScreenShareButton({
 }: {
   onError: (message: string | null) => void
 }) {
-  const { isScreenShareEnabled, localParticipant } = useLocalParticipant()
+  const { isMicrophoneEnabled, isScreenShareEnabled, localParticipant } = useLocalParticipant()
   const [isTogglingShare, setIsTogglingShare] = useState(false)
+  const [isTogglingMic, setIsTogglingMic] = useState(false)
   const canScreenShare = supportsScreenShare()
 
   const handleClick = async () => {
@@ -813,25 +855,52 @@ function ConnectedInlineScreenShareButton({
     }
   }
 
+  const handleMicClick = async () => {
+    try {
+      setIsTogglingMic(true)
+      await localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled)
+    } catch (nextError) {
+      onError(
+        nextError instanceof Error ? nextError.message : "Unable to toggle microphone.",
+      )
+    } finally {
+      setIsTogglingMic(false)
+    }
+  }
+
   return (
-    <Button
-      className="h-9 w-full justify-start rounded-xl"
-      onClick={() => {
-        void handleClick()
-      }}
-      disabled={isTogglingShare || !canScreenShare}
-      size="sm"
-      type="button"
-      variant={!canScreenShare ? "outline" : isScreenShareEnabled ? "destructive" : "secondary"}
-    >
-      {!canScreenShare
-        ? "Screen Share Unsupported"
-        : isTogglingShare
-          ? "Updating..."
-          : isScreenShareEnabled
-            ? "Stop Sharing"
-            : "Share Screen"}
-    </Button>
+    <>
+      <Button
+        className="h-9 w-full justify-start rounded-xl"
+        onClick={() => {
+          void handleClick()
+        }}
+        disabled={isTogglingShare || !canScreenShare}
+        size="sm"
+        type="button"
+        variant={!canScreenShare ? "outline" : isScreenShareEnabled ? "destructive" : "secondary"}
+      >
+        {!canScreenShare
+          ? "Screen Share Unsupported"
+          : isTogglingShare
+            ? "Updating..."
+            : isScreenShareEnabled
+              ? "Stop Sharing"
+              : "Share Screen"}
+      </Button>
+      <Button
+        className="h-9 w-full justify-start rounded-xl"
+        onClick={() => {
+          void handleMicClick()
+        }}
+        disabled={isTogglingMic}
+        size="sm"
+        type="button"
+        variant={isMicrophoneEnabled ? "destructive" : "secondary"}
+      >
+        {isTogglingMic ? "Updating..." : isMicrophoneEnabled ? "Mute Mic" : "Unmute Mic"}
+      </Button>
+    </>
   )
 }
 

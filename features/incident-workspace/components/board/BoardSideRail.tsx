@@ -4,7 +4,6 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import type { IncidentActionItem } from "@/features/incident-workspace/lib/board/types"
-import { DatasourceSearchPanel } from "@/features/incident-workspace/components/board/DatasourceSearchPanel"
 import { InvestigationArtifactsPanel } from "@/features/incident-workspace/components/board/InvestigationArtifactsPanel"
 import { YourTasksPanel } from "@/features/incident-workspace/components/board/YourTasksPanel"
 import type { RailPanel } from "@/features/incident-workspace/components/board/boardShellShared"
@@ -17,12 +16,6 @@ type BoardSideRailProps = {
   getTimelineEntryLabel: (entryId: string) => string
   isBoardFullscreen: boolean
   linkedCaseId?: string | null
-  onAddTimelineEntry: (input: {
-    body: string
-    linkedActionIds?: string[]
-    linkedEntityIds?: string[]
-    type: "decision" | "owner_change" | "update"
-  }) => void
   onCreateActionFromArtifact: (artifact: { title: string }) => void
   onLogActionStatusChange: (
     actionId: string,
@@ -48,7 +41,6 @@ export function BoardSideRail({
   getTimelineEntryLabel,
   isBoardFullscreen,
   linkedCaseId = null,
-  onAddTimelineEntry,
   onCreateActionFromArtifact,
   onLogActionStatusChange,
   onOpenActionBoard,
@@ -61,7 +53,6 @@ export function BoardSideRail({
   const railTabs: Array<{ id: RailPanel; label: string }> = [
     { id: "tasks", label: "Your Tasks" },
     { id: "findings", label: "Findings" },
-    { id: "search", label: "Search" },
   ]
 
   return (
@@ -83,21 +74,16 @@ export function BoardSideRail({
               <div>
                 <CardTitle className="text-lg">Room side rail</CardTitle>
                 <CardDescription className="mt-1 max-w-sm text-[13px] leading-6">
-                  Keep the board visible while triaging assigned work, promoted findings, and
-                  datasource search.
+                  Keep the board visible while triaging assigned work and promoted findings.
                 </CardDescription>
               </div>
             </div>
             <Badge variant="outline">
-              {activeRailPanel === "tasks"
-                ? "Tasks"
-                : activeRailPanel === "findings"
-                  ? "Findings"
-                  : "Search"}
+              {activeRailPanel === "tasks" ? "Tasks" : "Findings"}
             </Badge>
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             {railTabs.map((tab) => {
               const isActive = activeRailPanel === tab.id
 
@@ -140,13 +126,6 @@ export function BoardSideRail({
             />
           ) : null}
 
-          {activeRailPanel === "search" ? (
-            <DatasourceSearchPanel
-              linkedCaseId={linkedCaseId}
-              onAddTimelineEntry={onAddTimelineEntry}
-              roomId={roomId}
-            />
-          ) : null}
         </div>
       </div>
     </aside>

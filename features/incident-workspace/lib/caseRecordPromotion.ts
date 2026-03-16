@@ -7,6 +7,7 @@ import type {
 } from "@/lib/contracts/caseRecords"
 import type { EntityRef } from "@/lib/contracts/entities"
 import type { SavedDatasourceResultSet } from "@/lib/datasources/types"
+import { apiRequest } from "@/lib/api/client"
 
 type CreateCaseRecordViaApiInput = {
   caseId: string
@@ -25,25 +26,11 @@ type CreateCaseRecordViaApiInput = {
 }
 
 export async function createCaseRecordViaApi(input: CreateCaseRecordViaApiInput) {
-  const response = await fetch(`/api/cases/${input.caseId}/records`, {
+  return apiRequest<InvestigationCaseRecord>(`/api/cases/${input.caseId}/records`, {
     body: JSON.stringify({ record: input.record }),
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     method: "POST",
   })
-
-  const payload = await response.json()
-
-  if (!response.ok) {
-    throw new Error(
-      typeof payload.error === "string"
-        ? payload.error
-        : "Unable to create case record.",
-    )
-  }
-
-  return payload as InvestigationCaseRecord
 }
 
 function mapArtifactKindToCaseKind(

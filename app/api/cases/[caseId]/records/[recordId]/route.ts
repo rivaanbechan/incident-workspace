@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server"
 
 import { requireApiCasePermissionByCaseId } from "@/lib/auth/access"
-import type {
-  InvestigationCaseRecordKind,
-  InvestigationCaseRecordPayload,
-} from "@/lib/contracts/caseRecords"
+import type { InvestigationCaseRecordPayload } from "@/lib/contracts/caseRecords"
 import type { EntityRef } from "@/lib/contracts/entities"
+import {
+  isValidCaseRecordKind,
+  normalizeEntityRefs,
+  normalizeRecordPayload,
+} from "@/lib/contracts/validations"
 import {
   deleteInvestigationCaseRecord,
   getInvestigationCaseRecord,
@@ -18,41 +20,6 @@ type RouteContext = {
     caseId: string
     recordId: string
   }>
-}
-
-function isValidKind(value: string): value is InvestigationCaseRecordKind {
-  return (
-    value === "action" ||
-    value === "decision" ||
-    value === "evidence" ||
-    value === "finding" ||
-    value === "hypothesis" ||
-    value === "timeline-event"
-  )
-}
-
-function normalizeEntityRefs(value: unknown) {
-  if (!Array.isArray(value)) {
-    return []
-  }
-
-  return value.filter((item): item is EntityRef => {
-    return (
-      typeof item === "object" &&
-      item !== null &&
-      typeof (item as EntityRef).id === "string" &&
-      typeof (item as EntityRef).kind === "string" &&
-      typeof (item as EntityRef).label === "string"
-    )
-  })
-}
-
-function normalizePayload(value: unknown) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return {}
-  }
-
-  return value as InvestigationCaseRecordPayload
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
@@ -92,7 +59,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Title, summary, and kind are required." }, { status: 400 })
   }
 
-  if (!isValidKind(record.kind)) {
+  if (!isValidCaseRecordKind(record.kind)) {
     return NextResponse.json({ error: "Invalid case record kind." }, { status: 400 })
   }
 
@@ -100,7 +67,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const updated = await updateInvestigationCaseRecord(caseId, recordId, {
       deepLink: record.deepLink,
       kind: record.kind,
-      payload: normalizePayload(record.payload),
+      payload: normalizeRecordPayload(record.payload),
       relatedEntities: normalizeEntityRefs(record.relatedEntities),
       summary: record.summary.trim(),
       title: record.title.trim(),

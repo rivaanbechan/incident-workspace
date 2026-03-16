@@ -1,5 +1,6 @@
 "use client"
 
+import { apiRequest } from "@/lib/api/client"
 import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { Badge } from "@/components/ui/badge"
@@ -94,15 +95,9 @@ export function DatasourceAdminPanel() {
   const loadDatasources = useCallback(async () => {
     try {
       setIsLoading(true)
-      const response = await fetch("/api/datasources", {
+      const payload = await apiRequest<DatasourceCatalogResponse>("/api/datasources", {
         cache: "no-store",
       })
-
-      if (!response.ok) {
-        throw new Error("Unable to load datasource instances.")
-      }
-
-      const payload = (await response.json()) as DatasourceCatalogResponse
       setDefinitions(payload.definitions)
       setDatasources(payload.datasources)
 
@@ -172,11 +167,9 @@ export function DatasourceAdminPanel() {
     try {
       setIsSaving(true)
       setStatus("Saving datasource instance...")
-      const response = await fetch("/api/datasources", {
+      const saved = await apiRequest<{ title: string }>("/api/datasources", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           baseUrl: form.baseUrl,
           config: {
@@ -190,16 +183,6 @@ export function DatasourceAdminPanel() {
         }),
       })
 
-      const payload = await response.json()
-
-      if (!response.ok) {
-        throw new Error(
-          typeof payload.error === "string"
-            ? payload.error
-            : "Unable to save datasource instance.",
-        )
-      }
-
       setSelectedInstanceId(nextId)
       setEditorMode("edit")
       setForm((current) => ({
@@ -208,7 +191,7 @@ export function DatasourceAdminPanel() {
         token: "",
       }))
       setConnectionStatus(null)
-      setStatus(`Saved datasource "${payload.title}".`)
+      setStatus(`Saved datasource "${saved.title}".`)
       await loadDatasources()
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Unable to save datasource instance.")
@@ -228,21 +211,12 @@ export function DatasourceAdminPanel() {
     try {
       setIsTesting(true)
       setStatus("Testing datasource connection...")
-      const response = await fetch(`/api/datasources/${targetId}/test`, {
-        method: "POST",
-      })
+      const result = await apiRequest<DatasourceConnectionStatus>(
+        `/api/datasources/${targetId}/test`,
+        { method: "POST" },
+      )
 
-      const payload = await response.json()
-
-      if (!response.ok) {
-        throw new Error(
-          typeof payload.error === "string"
-            ? payload.error
-            : "Datasource connection test failed.",
-        )
-      }
-
-      setConnectionStatus(payload as DatasourceConnectionStatus)
+      setConnectionStatus(result)
       setStatus("Datasource connection test passed.")
     } catch (error) {
       setConnectionStatus(null)
@@ -268,19 +242,7 @@ export function DatasourceAdminPanel() {
     try {
       setIsDeleting(true)
       setStatus(`Deleting datasource "${selectedInstance.title}"...`)
-      const response = await fetch(`/api/datasources/${selectedInstance.id}`, {
-        method: "DELETE",
-      })
-
-      const payload = await response.json()
-
-      if (!response.ok) {
-        throw new Error(
-          typeof payload.error === "string"
-            ? payload.error
-            : "Unable to delete datasource instance.",
-        )
-      }
+      await apiRequest(`/api/datasources/${selectedInstance.id}`, { method: "DELETE" })
 
       setSelectedInstanceId(null)
       setStatus(`Deleted datasource "${selectedInstance.title}".`)

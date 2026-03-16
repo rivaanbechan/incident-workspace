@@ -11,162 +11,114 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import type { InvestigationSeverity, InvestigationStatus } from "@/lib/contracts/investigations"
-import type { ConnectionStatus } from "@/features/incident-workspace/components/board/boardCore"
-import type {
-  BoardConnection,
-  BoardConnectionType,
-  BoardEntity,
-  PresenceState,
-  PresenceUser,
-} from "@/features/incident-workspace/lib/board/types"
+import type { BoardConnectionType, BoardEntity } from "@/features/incident-workspace/lib/board/types"
 import { boardToScreen } from "@/features/incident-workspace/components/board/boardCore"
-import {
-  MAP_KIND_LABELS,
-  type PendingMapPrompt,
-} from "@/features/incident-workspace/components/board/boardShellShared"
+import { MAP_KIND_LABELS } from "@/features/incident-workspace/components/board/boardShellShared"
+import { useBoardEntities } from "@/features/incident-workspace/components/board/BoardEntitiesContext"
+import { useBoardSelection } from "@/features/incident-workspace/components/board/BoardSelectionContext"
+import { useBoardUI } from "@/features/incident-workspace/components/board/BoardUIContext"
 import {
   LiveSessionPanel,
   type ActiveScreenShare,
   type LiveShareView,
 } from "@/features/incident-workspace/components/livekit/LiveSessionPanel"
-import { type MutableRefObject, type ReactNode } from "react"
+import { type MutableRefObject, type ReactNode, useState } from "react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
-
-type ConnectionToneMap = Record<BoardConnectionType, { color: string; label: string }>
 
 type BoardCanvasProps = {
   activeScreenShares: ActiveScreenShare[]
   activeShareView: LiveShareView
-  areZonesEditable: boolean
-  camera: { x: number; y: number; zoom: number }
-  commandHints: string[]
-  connectionDraftCustomLabel: string
-  connectionDraftType: BoardConnectionType
-  connectionStatus: ConnectionStatus
-  connectionToneMap: ConnectionToneMap
-  connections: BoardConnection[]
-  entities: BoardEntity[]
   fitCanvasToScreen: () => void
-  getEntityLabel: (entityId: string) => string
   hasActiveScreenShares: boolean
-  isBoardFocused: boolean
-  isBoardFullscreen: boolean
-  isCanvasVisualMode: boolean
-  isHelpOpen: boolean
-  isPanning: boolean
-  linkedCaseId?: string | null
-  onActiveRailPanelOpen: () => void
   onBackgroundPointerDown: (event: React.PointerEvent<HTMLDivElement>) => void
-  onConnectDraftCustomLabelChange: (value: string) => void
-  onConnectDraftTypeChange: (value: BoardConnectionType) => void
-  onCreateActionForEntity: (entityId: string) => void
-  onCreateBlocker: () => void
-  onCreateEvidenceNote: () => void
-  onCreateHandoff: () => void
-  onCreateHypothesis: () => void
-  onCreateImpactNote: () => void
-  onCreateZone: () => void
-  onDeleteConnection: (connectionId: string) => void
-  onDeleteSelectedEntity: () => void
-  onDismissPendingMapPrompt: () => void
-  onLinkArtifactCancel: () => void
-  onLinkArtifactStart: (entityId: string) => void
-  onLogEntityToFeed: (entityId: string) => void
-  onPromoteSelectedEntity: () => void
-  onRenameConnectionLabel: (connectionId: string, currentLabel: string) => void
-  onToggleBoardFullscreen: () => void
-  onToggleHelpOpen: () => void
-  onToggleZoneEditing: () => void
   onWheel: (event: React.WheelEvent<HTMLDivElement>) => void
-  pendingConnectionSourceId: string | null
-  presence: PresenceState[]
-  promotingSourceId: string | null
-  remainingAssignedTaskCount: number
   renderEntity: (entity: BoardEntity) => ReactNode
   roomId: string
-  selectedEntity: BoardEntity | null
-  selectedEntityConnections: BoardConnection[]
-  selectedEntityId: string | null
-  selectedEntityLinkedActionCount: number
-  selectedEntityLinkedEntryCount: number
-  selectedEntityMapKind: keyof typeof MAP_KIND_LABELS | null
   setActiveScreenShares: (shares: ActiveScreenShare[]) => void
   setActiveShareView: (view: LiveShareView | ((current: LiveShareView) => LiveShareView)) => void
   stageRect: DOMRect | null
   stageRef: MutableRefObject<HTMLDivElement | null>
-  user: PresenceUser
-  visiblePendingMapPrompt: PendingMapPrompt | null
-  visibleSeverity: InvestigationSeverity
-  visibleStatus: InvestigationStatus
 }
 
 export function BoardCanvas({
   activeScreenShares,
   activeShareView,
-  areZonesEditable,
-  camera,
-  commandHints,
-  connectionDraftCustomLabel,
-  connectionDraftType,
-  connectionStatus,
-  connectionToneMap,
-  connections,
-  entities,
   fitCanvasToScreen,
-  getEntityLabel,
   hasActiveScreenShares,
-  isBoardFocused,
-  isBoardFullscreen,
-  isCanvasVisualMode,
-  isHelpOpen,
-  isPanning,
-  linkedCaseId = null,
-  onActiveRailPanelOpen,
   onBackgroundPointerDown,
-  onConnectDraftCustomLabelChange,
-  onConnectDraftTypeChange,
-  onCreateActionForEntity,
-  onCreateBlocker,
-  onCreateEvidenceNote,
-  onCreateHandoff,
-  onCreateHypothesis,
-  onCreateImpactNote,
-  onCreateZone,
-  onDeleteConnection,
-  onDeleteSelectedEntity,
-  onDismissPendingMapPrompt,
-  onLinkArtifactCancel,
-  onLinkArtifactStart,
-  onLogEntityToFeed,
-  onPromoteSelectedEntity,
-  onRenameConnectionLabel,
-  onToggleBoardFullscreen,
-  onToggleHelpOpen,
-  onToggleZoneEditing,
   onWheel,
-  pendingConnectionSourceId,
-  presence,
-  promotingSourceId,
-  remainingAssignedTaskCount,
   renderEntity,
   roomId,
-  selectedEntity,
-  selectedEntityConnections,
-  selectedEntityId,
-  selectedEntityLinkedActionCount,
-  selectedEntityLinkedEntryCount,
-  selectedEntityMapKind,
   setActiveScreenShares,
   setActiveShareView,
   stageRect,
   stageRef,
-  user,
-  visiblePendingMapPrompt,
-  visibleSeverity,
-  visibleStatus,
 }: BoardCanvasProps) {
+  const {
+    areZonesEditable,
+    camera,
+    commandHints,
+    connectionDraftCustomLabel,
+    connectionDraftType,
+    connectionStatus,
+    connectionToneMap,
+    isBoardFocused,
+    isBoardFullscreen,
+    isCanvasVisualMode,
+    isHelpOpen,
+    isPanning,
+    linkedCaseId,
+    onActiveRailPanelOpen,
+    onConnectDraftCustomLabelChange,
+    onConnectDraftTypeChange,
+    onDismissPendingMapPrompt,
+    onLinkArtifactCancel,
+    onLinkArtifactStart,
+    onToggleBoardFullscreen,
+    onToggleHelpOpen,
+    onToggleZoneEditing,
+    pendingConnectionSourceId,
+    remainingAssignedTaskCount,
+    user,
+    visiblePendingMapPrompt,
+    visibleSeverity,
+    visibleStatus,
+  } = useBoardUI()
+
+  const {
+    clearEntitySelection: _clearEntitySelection,
+    onDeleteSelectedEntity,
+    onPromoteSelectedEntity,
+    promotingSourceId,
+    selectedEntity,
+    selectedEntityConnections,
+    selectedEntityId,
+    selectedEntityLabel,
+    selectedEntityLinkedActionCount,
+    selectedEntityLinkedEntryCount,
+    selectedEntityMapKind,
+  } = useBoardSelection()
+
+  const {
+    connections,
+    entities,
+    getEntityLabel,
+    onCreateActionForEntity,
+    onCreateBlocker,
+    onCreateEvidenceNote,
+    onCreateHandoff,
+    onCreateHypothesis,
+    onCreateImpactNote,
+    onCreateZone,
+    onDeleteConnection,
+    onLogEntityToFeed,
+    onRenameConnectionLabel,
+    presence,
+  } = useBoardEntities()
+
+  const [speakingParticipantIds, setSpeakingParticipantIds] = useState<string[]>([])
+
   return (
     <div
       style={{
@@ -467,6 +419,7 @@ export function BoardCanvas({
                   return null
                 }
 
+                const isSpeaking = speakingParticipantIds.includes(item.user.id)
                 const point = boardToScreen(item.cursor, stageRect, camera)
 
                 return (
@@ -484,7 +437,9 @@ export function BoardCanvas({
                         height: 12,
                         borderRadius: 999,
                         background: item.user.color,
-                        boxShadow: "0 0 0 3px hsl(var(--background) / 0.9)",
+                        boxShadow: isSpeaking
+                          ? `0 0 0 3px hsl(var(--background) / 0.9), 0 0 0 5px ${item.user.color}`
+                          : "0 0 0 3px hsl(var(--background) / 0.9)",
                       }}
                     />
                     <div
@@ -498,8 +453,22 @@ export function BoardCanvas({
                         fontSize: 12,
                         fontWeight: 700,
                         whiteSpace: "nowrap",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
                       }}
                     >
+                      {isSpeaking ? (
+                        <span
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: 999,
+                            background: "#22c55e",
+                            flexShrink: 0,
+                          }}
+                        />
+                      ) : null}
                       {item.user.name}
                     </div>
                   </div>
@@ -680,7 +649,7 @@ export function BoardCanvas({
                 <Badge className="w-fit" variant="outline">
                   {MAP_KIND_LABELS[selectedEntityMapKind]}
                 </Badge>
-                <CardTitle className="text-sm">{getEntityLabel(selectedEntity.id)}</CardTitle>
+                <CardTitle className="text-sm">{selectedEntityLabel ?? getEntityLabel(selectedEntity.id)}</CardTitle>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="muted">{selectedEntityLinkedEntryCount} linked feed</Badge>
                   <Badge variant="muted">{selectedEntityLinkedActionCount} linked actions</Badge>
@@ -972,6 +941,7 @@ export function BoardCanvas({
                 isViewerEnabled
                 onActiveShareViewChange={setActiveShareView}
                 onScreenSharesChange={setActiveScreenShares}
+                onSpeakersChange={setSpeakingParticipantIds}
                 roomId={roomId}
                 user={user}
               />

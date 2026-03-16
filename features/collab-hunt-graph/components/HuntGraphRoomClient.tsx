@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select } from "@/components/ui/native-select"
 import { Textarea } from "@/components/ui/textarea"
+import { apiRequest } from "@/lib/api/client"
 import { getHuntGraphAdapters } from "@/features/collab-hunt-graph/lib/adapters"
 import type {
   HuntGraphEdge,
@@ -296,22 +297,12 @@ export function HuntGraphRoomClient({
       .replace(/\s+/g, " ")
       .trim()
 
-    const response = await fetch(`/api/hunt/${roomId}/views`, {
-      body: JSON.stringify({
-        snapshot,
-        title: generatedTitle,
-      }),
-      headers: {
-        "Content-Type": "application/json",
-      },
+    const savedView = await apiRequest<SavedHuntGraphViewDetail>(`/api/hunt/${roomId}/views`, {
+      body: JSON.stringify({ snapshot, title: generatedTitle }),
+      headers: { "Content-Type": "application/json" },
       method: "POST",
     })
 
-    if (!response.ok) {
-      throw new Error("Unable to save the current graph before promotion.")
-    }
-
-    const savedView = (await response.json()) as SavedHuntGraphViewDetail
     loadSavedView(savedView)
     window.history.replaceState(
       {},
@@ -324,16 +315,15 @@ export function HuntGraphRoomClient({
   }
 
   const refreshSavedViews = async () => {
-    const response = await fetch(`/api/hunt/${roomId}/views`, {
-      cache: "no-store",
-    })
-
-    if (!response.ok) {
-      return
+    try {
+      const nextViews = await apiRequest<SavedHuntGraphViewRecord[]>(
+        `/api/hunt/${roomId}/views`,
+        { cache: "no-store" },
+      )
+      setSavedViews(nextViews)
+    } catch {
+      // silently ignore refresh failures
     }
-
-    const nextViews = (await response.json()) as SavedHuntGraphViewRecord[]
-    setSavedViews(nextViews)
   }
 
   const handleSaveView = async () => {
@@ -344,57 +334,44 @@ export function HuntGraphRoomClient({
       return
     }
 
-    const response = await fetch(`/api/hunt/${roomId}/views`, {
-      body: JSON.stringify({
-        snapshot,
-        title,
-      }),
-      headers: {
-        "Content-Type": "application/json",
-      },
-      method: "POST",
-    })
+    try {
+      const savedView = await apiRequest<SavedHuntGraphViewDetail>(`/api/hunt/${roomId}/views`, {
+        body: JSON.stringify({ snapshot, title }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      })
 
-    if (!response.ok) {
-      const payload = (await response.json().catch(() => null)) as
-        | { error?: string }
-        | null
-
-      setSaveStatus(payload?.error || "Unable to save this graph view.")
-      return
+      loadSavedView(savedView)
+      setSaveStatus(`Saved "${savedView.title}".`)
+      setSaveTitle(savedView.title)
+      window.history.replaceState(
+        {},
+        "",
+        `/hunt/${roomId}?view=${encodeURIComponent(savedView.id)}`,
+      )
+      await refreshSavedViews()
+    } catch (error) {
+      setSaveStatus(error instanceof Error ? error.message : "Unable to save this graph view.")
     }
-
-    const savedView = (await response.json()) as SavedHuntGraphViewDetail
-    loadSavedView(savedView)
-    setSaveStatus(`Saved "${savedView.title}".`)
-    setSaveTitle(savedView.title)
-    window.history.replaceState(
-      {},
-      "",
-      `/hunt/${roomId}?view=${encodeURIComponent(savedView.id)}`,
-    )
-    await refreshSavedViews()
   }
 
   const handleOpenSavedView = async (viewId: string) => {
-    const response = await fetch(`/api/hunt/${roomId}/views/${viewId}`, {
-      cache: "no-store",
-    })
-
-    if (!response.ok) {
+    try {
+      const savedView = await apiRequest<SavedHuntGraphViewDetail>(
+        `/api/hunt/${roomId}/views/${viewId}`,
+        { cache: "no-store" },
+      )
+      loadSavedView(savedView)
+      setSaveTitle(savedView.title)
+      setSaveStatus(`Opened "${savedView.title}".`)
+      window.history.replaceState(
+        {},
+        "",
+        `/hunt/${roomId}?view=${encodeURIComponent(savedView.id)}`,
+      )
+    } catch {
       setSaveStatus("Unable to load that saved graph view.")
-      return
     }
-
-    const savedView = (await response.json()) as SavedHuntGraphViewDetail
-    loadSavedView(savedView)
-    setSaveTitle(savedView.title)
-    setSaveStatus(`Opened "${savedView.title}".`)
-    window.history.replaceState(
-      {},
-      "",
-      `/hunt/${roomId}?view=${encodeURIComponent(savedView.id)}`,
-    )
   }
 
   const handleCopyDeepLink = async (viewId: string) => {
@@ -466,21 +443,11 @@ export function HuntGraphRoomClient({
           "Shared hunt finding",
       }
 
-      const response = await fetch(`/api/rooms/${roomId}/artifacts`, {
+      await apiRequest(`/api/rooms/${roomId}/artifacts`, {
         body: JSON.stringify({ artifact }),
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         method: "POST",
       })
-
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as
-          | { error?: string }
-          | null
-
-        throw new Error(payload?.error || "Unable to promote the finding.")
-      }
 
       setSaveStatus("Promoted the finding into the incident workspace.")
     } catch (error) {

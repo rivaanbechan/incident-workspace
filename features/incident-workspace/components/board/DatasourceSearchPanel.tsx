@@ -20,6 +20,7 @@ import { Select } from "@/components/ui/native-select"
 import { Textarea } from "@/components/ui/textarea"
 import { getIntegrationsHref } from "@/features/integrations/manifest"
 import Link from "next/link"
+import { apiRequest } from "@/lib/api/client"
 import { useCallback, useEffect, useState } from "react"
 
 type DatasourceSearchPanelProps = {
@@ -159,30 +160,19 @@ export function DatasourceSearchPanel({
     datasources.find((datasource) => datasource.id === datasourceId) ?? null
 
   const loadSavedResultSets = useCallback(async () => {
-    const response = await fetch(`/api/rooms/${roomId}/datasource-results`, {
-      cache: "no-store",
-    })
-
-    if (!response.ok) {
-      throw new Error("Unable to load saved datasource result sets.")
-    }
-
-    const payload = (await response.json()) as SavedDatasourceResultSet[]
+    const payload = await apiRequest<SavedDatasourceResultSet[]>(
+      `/api/rooms/${roomId}/datasource-results`,
+      { cache: "no-store" },
+    )
     setSavedResultSets(payload)
   }, [roomId])
 
   const loadCatalog = useCallback(async () => {
     try {
       setIsLoadingCatalog(true)
-      const response = await fetch("/api/datasources", {
+      const payload = await apiRequest<DatasourceCatalogResponse>("/api/datasources", {
         cache: "no-store",
       })
-
-      if (!response.ok) {
-        throw new Error("Unable to load datasource catalog.")
-      }
-
-      const payload = (await response.json()) as DatasourceCatalogResponse
       const enabledDatasources = payload.datasources.filter((datasource) => datasource.enabled)
       setDatasources(enabledDatasources)
 
@@ -216,31 +206,20 @@ export function DatasourceSearchPanel({
     try {
       setIsSearching(true)
       setSearchStatus("Running datasource search. Results remain ephemeral until you save them.")
-      const response = await fetch(`/api/datasources/${selectedDatasource.id}/search`, {
-        body: JSON.stringify({
-          caseId: linkedCaseId,
-          earliestTime,
-          latestTime,
-          limit: Number(limit),
-          query,
-        }),
-        headers: {
-          "Content-Type": "application/json",
+      const result = await apiRequest<DatasourceSearchResult>(
+        `/api/datasources/${selectedDatasource.id}/search`,
+        {
+          body: JSON.stringify({
+            caseId: linkedCaseId,
+            earliestTime,
+            latestTime,
+            limit: Number(limit),
+            query,
+          }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
         },
-        method: "POST",
-      })
-
-      const payload = await response.json()
-
-      if (!response.ok) {
-        throw new Error(
-          typeof payload.error === "string"
-            ? payload.error
-            : "Unable to execute datasource search.",
-        )
-      }
-
-      const result = payload as DatasourceSearchResult
+      )
       setSearchResult(result)
       setSearchStatus(
         result.rowCount > 0
@@ -292,21 +271,11 @@ export function DatasourceSearchPanel({
         title: row.title,
       }
 
-      const response = await fetch(`/api/rooms/${roomId}/artifacts`, {
+      await apiRequest(`/api/rooms/${roomId}/artifacts`, {
         body: JSON.stringify({ artifact }),
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         method: "POST",
       })
-
-      const payload = await response.json()
-
-      if (!response.ok) {
-        throw new Error(
-          typeof payload.error === "string" ? payload.error : "Unable to promote result.",
-        )
-      }
 
       setSearchStatus(`Promoted "${row.title}" into the investigation artifacts feed.`)
     } catch (error) {
@@ -332,7 +301,7 @@ export function DatasourceSearchPanel({
         roomId,
         rows: searchResult.rows,
       })
-      const response = await fetch(`/api/rooms/${roomId}/datasource-results`, {
+      await apiRequest(`/api/rooms/${roomId}/datasource-results`, {
         body: JSON.stringify({
           artifact,
           datasourceId: selectedDatasource.id,
@@ -347,21 +316,9 @@ export function DatasourceSearchPanel({
           title: artifact.title,
           vendor: selectedDatasource.vendor,
         }),
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         method: "POST",
       })
-
-      const payload = await response.json()
-
-      if (!response.ok) {
-        throw new Error(
-          typeof payload.error === "string"
-            ? payload.error
-            : "Unable to save datasource result set.",
-        )
-      }
 
       await loadSavedResultSets()
       setSearchStatus(

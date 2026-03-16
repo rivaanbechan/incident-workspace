@@ -5,8 +5,8 @@ import type {
   NoteEntity,
 } from "@/features/incident-workspace/lib/board/types"
 
-export type MainWorkspaceTab = "actions" | "canvas" | "feed"
-export type RailPanel = "findings" | "search" | "tasks"
+export type MainWorkspaceTab = "actions" | "canvas" | "feed" | "search"
+export type RailPanel = "findings" | "tasks"
 export type QuickCaptureMode = "action" | "timeline"
 
 export type PendingMapPrompt = {

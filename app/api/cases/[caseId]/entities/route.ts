@@ -7,26 +7,12 @@ import {
   upsertInvestigationEntity,
 } from "@/lib/db/investigationEntities"
 import type { InvestigationEntityKind } from "@/lib/contracts/investigationEntities"
+import { isValidInvestigationEntityKind } from "@/lib/contracts/validations"
 
 type RouteContext = {
   params: Promise<{
     caseId: string
   }>
-}
-
-function isValidKind(value: string) {
-  return (
-    value === "domain" ||
-    value === "email" ||
-    value === "file" ||
-    value === "host" ||
-    value === "identity" ||
-    value === "ip" ||
-    value === "process" ||
-    value === "service" ||
-    value === "url" ||
-    value === "other"
-  )
 }
 
 export async function GET(_request: Request, context: RouteContext) {
@@ -80,7 +66,7 @@ export async function POST(request: Request, context: RouteContext) {
   const value = (entity.value ?? entity.id ?? "").trim()
   const label = (entity.label ?? value).trim()
 
-  if (!value || !label || !entity.kind || !isValidKind(entity.kind)) {
+  if (!value || !label || !entity.kind || !isValidInvestigationEntityKind(entity.kind)) {
     return NextResponse.json(
       { error: "Entity kind, value, and label are required." },
       { status: 400 },
