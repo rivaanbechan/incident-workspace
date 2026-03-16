@@ -22,6 +22,7 @@ export type DatasourceInstallation = {
   createdAt: string
   enabled: boolean
   id: string
+  skipTlsVerify: boolean
   title: string
   updatedAt: string
   vendor: DatasourceVendorId

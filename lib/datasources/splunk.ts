@@ -1,3 +1,5 @@
+import https from "node:https"
+
 import type { EntityKind, EntityRef } from "@/lib/contracts/entities"
 import type {
   DatasourceAdapter,
@@ -30,6 +32,54 @@ function resolveToken(config: DatasourceConfigPayload) {
   }
 
   return token
+}
+
+function resolveSkipTlsVerify(config: DatasourceConfigPayload) {
+  return config.skipTlsVerify === true
+}
+
+async function splunkFetch(
+  url: string,
+  options: RequestInit,
+  skipTlsVerify: boolean,
+): Promise<Response> {
+  if (!skipTlsVerify) {
+    return fetch(url, options)
+  }
+
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url)
+    const reqOptions: https.RequestOptions = {
+      hostname: parsed.hostname,
+      port: parsed.port || 443,
+      path: parsed.pathname + parsed.search,
+      method: (options.method as string) || "GET",
+      headers: options.headers as Record<string, string>,
+      rejectUnauthorized: false,
+    }
+
+    const req = https.request(reqOptions, (res) => {
+      const chunks: Buffer[] = []
+      res.on("data", (chunk: Buffer) => chunks.push(chunk))
+      res.on("end", () => {
+        const body = Buffer.concat(chunks).toString("utf8")
+        resolve(
+          new Response(body, {
+            status: res.statusCode ?? 500,
+            statusText: res.statusMessage ?? "",
+          }),
+        )
+      })
+    })
+
+    req.on("error", reject)
+
+    if (options.body) {
+      req.write(options.body)
+    }
+
+    req.end()
+  })
 }
 
 function stringifyValue(value: unknown) {
@@ -240,11 +290,16 @@ async function testSplunkConnection(
 
   const startedAt = new Date().toISOString()
   const baseUrl = normalizeBaseUrl(datasource.baseUrl)
-  const response = await fetch(`${baseUrl}/services/server/info?output_mode=json`, {
-    cache: "no-store",
-    headers: buildAuthHeaders(resolveToken(datasource.config)),
-    method: "GET",
-  })
+  const skipTlsVerify = resolveSkipTlsVerify(datasource.config)
+  const response = await splunkFetch(
+    `${baseUrl}/services/server/info?output_mode=json`,
+    {
+      cache: "no-store",
+      headers: buildAuthHeaders(resolveToken(datasource.config)),
+      method: "GET",
+    },
+    skipTlsVerify,
+  )
 
   if (!response.ok) {
     throw new Error(await readResponseError(response))
@@ -265,15 +320,20 @@ async function runSplunkSearch(
 
   const startedAt = Date.now()
   const baseUrl = normalizeBaseUrl(datasource.baseUrl)
-  const response = await fetch(`${baseUrl}/services/search/jobs/export`, {
-    body: buildSearchBody(request).toString(),
-    cache: "no-store",
-    headers: {
-      ...buildAuthHeaders(resolveToken(datasource.config)),
-      "Content-Type": "application/x-www-form-urlencoded",
+  const skipTlsVerify = resolveSkipTlsVerify(datasource.config)
+  const response = await splunkFetch(
+    `${baseUrl}/services/search/jobs/export`,
+    {
+      body: buildSearchBody(request).toString(),
+      cache: "no-store",
+      headers: {
+        ...buildAuthHeaders(resolveToken(datasource.config)),
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      method: "POST",
     },
-    method: "POST",
-  })
+    skipTlsVerify,
+  )
 
   if (!response.ok) {
     throw new Error(await readResponseError(response))
@@ -304,6 +364,7 @@ function validateSplunkConfig(
   }
 
   return {
+    skipTlsVerify: config.skipTlsVerify === true,
     token: nextToken,
   }
 }

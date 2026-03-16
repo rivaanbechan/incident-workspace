@@ -42,6 +42,7 @@ function createEmptyForm(vendor = "splunk") {
     baseUrl: "",
     enabled: true,
     id: "",
+    skipTlsVerify: false,
     title: "",
     token: "",
     vendor,
@@ -129,6 +130,7 @@ export function DatasourceAdminPanel() {
         baseUrl: selectedInstance.baseUrl,
         enabled: selectedInstance.enabled,
         id: selectedInstance.id,
+        skipTlsVerify: selectedInstance.skipTlsVerify ?? false,
         title: selectedInstance.title,
         token: "",
         vendor: selectedInstance.vendor,
@@ -178,6 +180,7 @@ export function DatasourceAdminPanel() {
         body: JSON.stringify({
           baseUrl: form.baseUrl,
           config: {
+            skipTlsVerify: form.skipTlsVerify,
             token: form.token,
           },
           enabled: form.enabled,
@@ -509,6 +512,14 @@ export function DatasourceAdminPanel() {
                   onCheckedChange={(checked) => updateForm("enabled", checked === true)}
                 />
                 Enabled for the whole app
+              </label>
+
+              <label className="flex items-center gap-3 text-sm font-medium text-foreground">
+                <Checkbox
+                  checked={form.skipTlsVerify}
+                  onCheckedChange={(checked) => updateForm("skipTlsVerify", checked === true)}
+                />
+                Skip TLS certificate verification
               </label>
             </div>
 
