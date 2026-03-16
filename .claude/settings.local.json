@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx shadcn@latest list 2>/dev/null | head -40 || echo \"shadcn CLI not available\")"
+    ]
+  }
+}

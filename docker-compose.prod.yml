@@ -1,0 +1,50 @@
+services:
+  app:
+    command: sh -c "npm run build && npm run start -- --hostname 0.0.0.0 --port 3000"
+    environment:
+      LIVEKIT_URL: ${LIVEKIT_URL:-ws://livekit:7880}
+      LIVEKIT_PUBLIC_URL: ${LIVEKIT_PUBLIC_URL:-wss://${LIVEKIT_DOMAIN}}
+      NEXT_PUBLIC_Y_WEBSOCKET_URL: ${NEXT_PUBLIC_Y_WEBSOCKET_URL:-wss://${COLLAB_DOMAIN}}
+      NODE_ENV: production
+    ports: !override []
+    restart: unless-stopped
+
+  collab:
+    ports: !override []
+    restart: unless-stopped
+
+  livekit:
+    restart: unless-stopped
+
+  postgres:
+    ports: !override []
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.10.2
+    container_name: incident-workspace-caddy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      app:
+        condition: service_started
+      collab:
+        condition: service_started
+      livekit:
+        condition: service_started
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+      COLLAB_DOMAIN: ${COLLAB_DOMAIN}
+      LIVEKIT_DOMAIN: ${LIVEKIT_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    restart: unless-stopped
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_config:
+  caddy_data:

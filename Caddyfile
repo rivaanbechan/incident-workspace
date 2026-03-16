@@ -1,0 +1,14 @@
+{$APP_DOMAIN} {
+  tls internal
+  reverse_proxy app:3000
+}
+
+{$COLLAB_DOMAIN} {
+  tls internal
+  reverse_proxy collab:1234
+}
+
+{$LIVEKIT_DOMAIN} {
+  tls internal
+  reverse_proxy host.docker.internal:7880
+}

@@ -1,0 +1,73 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: npm run dev -- --hostname 0.0.0.0
+    container_name: incident-workspace-app
+    depends_on:
+      collab:
+        condition: service_started
+      livekit:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
+      CASE_WEBHOOK_SECRET: ${CASE_WEBHOOK_SECRET:-dev-case-webhook-secret}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://incident:incident_dev_password@postgres:5432/incident_workspace}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-devkey}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-devsecret0123456789devsecret01234567}
+      LIVEKIT_URL: ${LIVEKIT_URL:-ws://localhost:7880}
+      LIVEKIT_PUBLIC_URL: ${LIVEKIT_PUBLIC_URL:-}
+      NEXT_PUBLIC_Y_WEBSOCKET_URL: ${NEXT_PUBLIC_Y_WEBSOCKET_URL:-}
+      NODE_ENV: development
+    ports:
+      - "3000:3000"
+
+  postgres:
+    container_name: incident-workspace-postgres
+    image: postgres:16-bookworm
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-incident_workspace}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-incident_dev_password}
+      POSTGRES_USER: ${POSTGRES_USER:-incident}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-incident} -d ${POSTGRES_DB:-incident_workspace}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  collab:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: npm run collab
+    container_name: incident-workspace-collab
+    environment:
+      AUTH_SECRET: ${AUTH_SECRET:-}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://incident:incident_dev_password@postgres:5432/incident_workspace}
+      HOST: 0.0.0.0
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-}
+      PORT: 1234
+    ports:
+      - "1234:1234"
+
+  livekit:
+    container_name: incident-workspace-livekit
+    image: livekit/livekit-server:v1.9.12
+    command: --config /etc/livekit/livekit.yaml
+    network_mode: host
+    volumes:
+      - ./livekit.yaml:/etc/livekit/livekit.yaml:ro
+
+volumes:
+  postgres_data:
