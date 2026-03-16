@@ -250,3 +250,4 @@ Read first:
 - Do not write to `BoardCanvas` props for new board features — use context instead
 - Do not put business logic in `app/` route files — keep them as thin mounters
 - Do not use vitest globals without explicit imports in test files
+- **Do not call `awareness.setLocalStateField` inside pointer/wheel/scroll handlers without a time-gate.** Unthrottled awareness writes at 60–120 Hz broadcast to every participant and trigger cascading React re-renders. Use a 50 ms timestamp gate (see `useDragAndResize.ts`). On the receive side, batch `setPresence` calls with `requestAnimationFrame` so React re-renders are capped at 60 fps regardless of incoming message rate (see `useYjsRoom.ts`).

@@ -869,7 +869,7 @@ function ConnectedInlineScreenShareButton({
   }
 
   return (
-    <>
+    <div className="flex flex-col gap-2">
       <Button
         className="h-9 w-full justify-start rounded-xl"
         onClick={() => {
@@ -900,7 +900,7 @@ function ConnectedInlineScreenShareButton({
       >
         {isTogglingMic ? "Updating..." : isMicrophoneEnabled ? "Mute Mic" : "Unmute Mic"}
       </Button>
-    </>
+    </div>
   )
 }
 

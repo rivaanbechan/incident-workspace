@@ -79,6 +79,7 @@ export function useDragAndResize({
   stageRef,
 }: UseDragAndResizeArgs) {
   const interactionRef = useRef<InteractionState>(null)
+  const lastCursorSentAtRef = useRef(0)
   const [isPanning, setIsPanning] = useState(false)
 
   const beginEntityDrag = useCallback(
@@ -118,6 +119,12 @@ export function useDragAndResize({
 
   useEffect(() => {
     const updatePresencePointer = (event: PointerEvent) => {
+      const now = Date.now()
+
+      if (now - lastCursorSentAtRef.current < 50) {
+        return
+      }
+
       const provider = providerRef.current
       const stage = stageRef.current
 
@@ -136,6 +143,7 @@ export function useDragAndResize({
         return
       }
 
+      lastCursorSentAtRef.current = now
       const nextCursor = screenToBoard(event.clientX, event.clientY, rect, cameraRef.current)
 
       provider.awareness.setLocalStateField("cursor", nextCursor)

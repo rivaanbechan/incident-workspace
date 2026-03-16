@@ -158,12 +158,22 @@ export function useYjsRoom({
       )
     }
 
-    const syncPresence = () => {
-      const nextPresence = Array.from(provider.awareness.getStates().values())
-        .filter(isPresenceState)
-        .filter((item) => item.roomId === roomId && item.user.id !== userRef.current.id)
+    let pendingPresenceFrame: number | null = null
 
-      setPresence(nextPresence)
+    const syncPresence = () => {
+      if (pendingPresenceFrame !== null) {
+        return
+      }
+
+      pendingPresenceFrame = requestAnimationFrame(() => {
+        pendingPresenceFrame = null
+
+        const nextPresence = Array.from(provider.awareness.getStates().values())
+          .filter(isPresenceState)
+          .filter((item) => item.roomId === roomId && item.user.id !== userRef.current.id)
+
+        setPresence(nextPresence)
+      })
     }
 
     const clearLegacyScreenTiles = () => {
@@ -276,6 +286,10 @@ export function useYjsRoom({
     syncPresence()
 
     return () => {
+      if (pendingPresenceFrame !== null) {
+        cancelAnimationFrame(pendingPresenceFrame)
+      }
+
       entityMap.unobserve(syncEntities)
       connectionsList.unobserve(syncConnections)
       incidentActionsList.unobserve(syncIncidentActions)
