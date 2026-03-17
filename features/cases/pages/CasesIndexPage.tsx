@@ -2,6 +2,8 @@ import Link from "next/link"
 import { Plus, Filter, Search, ArrowRight, LayoutGrid, List, FolderOpen, AlertTriangle, CheckCircle2, Clock, Archive, X } from "lucide-react"
 
 import { AppShell } from "@/components/shell/AppShell"
+import { EmptyState } from "@/components/shell/EmptyState"
+import { TonedCard } from "@/components/shell/TonedCard"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -21,7 +23,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -38,6 +39,14 @@ import {
 } from "@/components/ui/tooltip"
 import { createCaseAction } from "@/features/cases/actions"
 import { getCaseDetailHref } from "@/features/cases/manifest"
+import { getSeveritySurfaceTone } from "@/lib/ui/tones"
+import {
+  formatTimestamp,
+  getSeverityBadgeVariant,
+  getStatusBadgeVariant,
+} from "@/features/cases/lib/formatters"
+import { FormField } from "@/components/shell/FormField"
+import { StatCard } from "@/components/shell/StatCard"
 import { requireAuthenticatedUser } from "@/lib/auth/access"
 import type {
   InvestigationSeverity,
@@ -62,55 +71,6 @@ function readSearchParam(
   return typeof value === "string" ? value : ""
 }
 
-function formatTimestamp(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    month: "short",
-  }).format(new Date(value))
-}
-
-function getSeverityBadgeVariant(severity: InvestigationSeverity): "critical" | "warning" | "success" | "default" {
-  switch (severity) {
-    case "critical":
-      return "critical"
-    case "high":
-    case "medium":
-      return "warning"
-    case "low":
-    default:
-      return "success"
-  }
-}
-
-function getStatusBadgeVariant(status: InvestigationStatus): "muted" | "success" | "info" | "default" {
-  switch (status) {
-    case "closed":
-      return "muted"
-    case "mitigated":
-      return "success"
-    case "monitoring":
-      return "info"
-    case "open":
-    default:
-      return "default"
-  }
-}
-
-function getSeveritySurfaceTone(severity: InvestigationSeverity) {
-  switch (severity) {
-    case "critical":
-      return { accent: "#b91c1c", tint: "rgba(185, 28, 28, 0.14)" }
-    case "high":
-      return { accent: "#dc2626", tint: "rgba(220, 38, 38, 0.12)" }
-    case "medium":
-      return { accent: "#d97706", tint: "rgba(217, 119, 6, 0.14)" }
-    case "low":
-    default:
-      return { accent: "#16a34a", tint: "rgba(22, 163, 74, 0.12)" }
-  }
-}
 
 export async function CasesIndexPage({ searchParams }: CasesIndexPageProps) {
   const currentUser = await requireAuthenticatedUser()
@@ -209,9 +169,8 @@ export async function CasesIndexPage({ searchParams }: CasesIndexPageProps) {
                         Open a new investigation workspace to collaborate with your team.
                       </DialogDescription>
                     </DialogHeader>
-                    <form action={createCaseAction} className="space-y-4 pt-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="case-title">Title</Label>
+                    <form action={createCaseAction} className="grid gap-4 pt-4">
+                      <FormField htmlFor="case-title" label="Title">
                         <Input
                           id="case-title"
                           name="title"
@@ -219,19 +178,17 @@ export async function CasesIndexPage({ searchParams }: CasesIndexPageProps) {
                           required
                           className="h-10"
                         />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="case-summary">Summary</Label>
+                      </FormField>
+                      <FormField htmlFor="case-summary" label="Summary">
                         <Input
                           id="case-summary"
                           name="summary"
                           placeholder="Brief description of the investigation"
                           className="h-10"
                         />
-                      </div>
+                      </FormField>
                       <div className="grid gap-4 sm:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label htmlFor="case-owner">Owner</Label>
+                        <FormField htmlFor="case-owner" label="Owner">
                           <Input
                             id="case-owner"
                             defaultValue={currentUser.name}
@@ -239,9 +196,8 @@ export async function CasesIndexPage({ searchParams }: CasesIndexPageProps) {
                             placeholder="Owner"
                             className="h-10"
                           />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="case-severity">Severity</Label>
+                        </FormField>
+                        <FormField htmlFor="case-severity" label="Severity">
                           <Select name="severity" defaultValue="high">
                             <SelectTrigger className="h-10 w-full">
                               <SelectValue placeholder="Select severity" />
@@ -253,7 +209,7 @@ export async function CasesIndexPage({ searchParams }: CasesIndexPageProps) {
                               <SelectItem value="critical">Critical</SelectItem>
                             </SelectContent>
                           </Select>
-                        </div>
+                        </FormField>
                       </div>
                       <div className="flex justify-end gap-2 pt-4">
                         <DialogClose asChild>
@@ -270,73 +226,33 @@ export async function CasesIndexPage({ searchParams }: CasesIndexPageProps) {
 
           {/* Stats Overview */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Card className="relative overflow-hidden border-border/50 bg-card/95 shadow-sm">
-              <div className="absolute inset-x-0 top-0 h-px bg-border/60" />
-              <CardContent className="flex items-start justify-between gap-4 p-5">
-                <div className="space-y-2">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                    Total cases
-                  </div>
-                  <div className="text-3xl font-bold tracking-tight text-foreground">
-                    {investigations.length}
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-border/50 bg-background/80 p-3 text-muted-foreground">
-                  <FolderOpen className="size-5" />
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="relative overflow-hidden border-border/50 bg-card/95 shadow-sm">
-              <div className="absolute inset-x-0 top-0 h-px bg-primary/60" />
-              <CardContent className="flex items-start justify-between gap-4 p-5">
-                <div className="space-y-2">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                    Open investigations
-                  </div>
-                  <div className="text-3xl font-bold tracking-tight text-foreground">{openCases}</div>
-                </div>
-                <div className="rounded-2xl border border-primary/20 bg-primary/10 p-3 text-primary">
-                  <Clock className="size-5" />
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="relative overflow-hidden border-border/50 bg-card/95 shadow-sm">
-              <div className="absolute inset-x-0 top-0 h-px bg-destructive/60" />
-              <CardContent className="flex items-start justify-between gap-4 p-5">
-                <div className="space-y-2">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                    Critical severity
-                  </div>
-                  <div
-                    className={cn(
-                      "text-3xl font-bold tracking-tight",
-                      criticalCases > 0 ? "text-destructive" : "text-foreground",
-                    )}
-                  >
-                    {criticalCases}
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-destructive/20 bg-destructive/10 p-3 text-destructive">
-                  <AlertTriangle className="size-5" />
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="relative overflow-hidden border-border/50 bg-card/95 shadow-sm">
-              <div className="absolute inset-x-0 top-0 h-px bg-success/60" />
-              <CardContent className="flex items-start justify-between gap-4 p-5">
-                <div className="space-y-2">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                    Open actions
-                  </div>
-                  <div className="text-3xl font-bold tracking-tight text-foreground">
-                    {totalOpenActions}
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-success/20 bg-success/10 p-3 text-success">
-                  <CheckCircle2 className="size-5" />
-                </div>
-              </CardContent>
-            </Card>
+            <StatCard
+              label="Total cases"
+              value={investigations.length}
+              icon={<FolderOpen className="size-5" />}
+            />
+            <StatCard
+              label="Open investigations"
+              value={openCases}
+              icon={<Clock className="size-5" />}
+              variant="primary"
+            />
+            <StatCard
+              label="Critical severity"
+              value={
+                <span className={criticalCases > 0 ? "text-destructive" : undefined}>
+                  {criticalCases}
+                </span>
+              }
+              icon={<AlertTriangle className="size-5" />}
+              variant="destructive"
+            />
+            <StatCard
+              label="Open actions"
+              value={totalOpenActions}
+              icon={<CheckCircle2 className="size-5" />}
+              variant="success"
+            />
           </div>
 
           <Card className="border-border/50 bg-card/95 shadow-sm">
@@ -453,38 +369,30 @@ export async function CasesIndexPage({ searchParams }: CasesIndexPageProps) {
 
             {/* Cases Grid */}
             {investigations.length === 0 ? (
-              <Card className="border-dashed border-border/60 bg-background/80 shadow-none">
-                <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-                  <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                    <Search className="size-6 text-muted-foreground" />
-                  </div>
-                  <p className="text-lg font-medium">No cases found</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Try adjusting your filters or create a new case to get started
-                  </p>
-                  {hasActiveFilters && (
-                    <Button asChild variant="outline" className="mt-4">
-                      <Link href="/cases">Clear all filters</Link>
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
+              <EmptyState
+                size="lg"
+                icon={<Search className="size-6 text-muted-foreground" />}
+                heading="No cases found"
+                message="Try adjusting your filters or create a new case to get started"
+              >
+                {hasActiveFilters && (
+                  <Button asChild variant="outline" className="mt-2">
+                    <Link href="/cases">Clear all filters</Link>
+                  </Button>
+                )}
+              </EmptyState>
             ) : (
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 {investigations.map((caseItem) => {
                   const tone = getSeveritySurfaceTone(caseItem.severity)
 
                   return (
-                  <Card
+                  <TonedCard
                     key={caseItem.id}
-                    className={cn(
-                      "group relative flex h-full flex-col overflow-hidden border-border/50 bg-card/95 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg",
-                    )}
-                    style={{
-                      backgroundImage: `linear-gradient(180deg, hsl(var(--card) / 0.98), hsl(var(--card) / 0.94)), radial-gradient(circle at top left, ${tone.tint}, transparent 65%)`,
-                    }}
+                    tint={tone.tint}
+                    accent={tone.accent}
+                    className="group flex h-full flex-col border-border/50 bg-card/95 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg"
                   >
-                    <div className="absolute inset-x-0 top-0 h-1" style={{ background: tone.accent }} />
                     <CardHeader className="pb-3 pt-5">
                       <div className="flex items-start justify-between gap-2">
                         <Tooltip>
@@ -579,7 +487,7 @@ export async function CasesIndexPage({ searchParams }: CasesIndexPageProps) {
                         </Button>
                       </div>
                     </CardContent>
-                  </Card>
+                  </TonedCard>
                 )})}
               </div>
             )}

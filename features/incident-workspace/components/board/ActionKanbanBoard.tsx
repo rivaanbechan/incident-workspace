@@ -1,5 +1,7 @@
 "use client"
 
+import { EmptyState } from "@/components/shell/EmptyState"
+import { TonedCard } from "@/components/shell/TonedCard"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -11,13 +13,17 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/native-select"
-import { Textarea } from "@/components/ui/textarea"
 import type {
   IncidentActionItem,
   IncidentActionStatus,
 } from "@/features/incident-workspace/lib/board/types"
+import {
+  ACTION_STATUS_LABELS,
+  ACTION_STATUS_ORDER,
+} from "@/features/incident-workspace/lib/board/constants"
 import { cn } from "@/lib/utils"
 import { useEffect, useRef, useState, type MutableRefObject } from "react"
+import { StatusUpdateCard } from "@/features/incident-workspace/components/board/StatusUpdateCard"
 
 type ActionKanbanBoardProps = {
   actions: IncidentActionItem[]
@@ -48,13 +54,6 @@ type ActionKanbanBoardProps = {
   composerRef?: MutableRefObject<HTMLInputElement | null>
   selectedEntityLabel?: string | null
   onCreateActionFromSelection?: () => void
-}
-
-const ACTION_STATUS_LABELS: Record<IncidentActionStatus, string> = {
-  blocked: "Blocked",
-  done: "Done",
-  in_progress: "In Progress",
-  open: "Open",
 }
 
 const ACTION_STATUS_TONES: Record<
@@ -296,11 +295,7 @@ export function ActionKanbanBoard({
 
       {actions.length === 0 ? (
         <div className="m-4">
-          <Card className="border-dashed border-border/60 bg-background/80 shadow-none">
-            <CardContent className="p-5 text-sm leading-6 text-muted-foreground">
-              No actions yet. Add the next mitigation, handoff, or verification step.
-            </CardContent>
-          </Card>
+          <EmptyState message="No actions yet. Add the next mitigation, handoff, or verification step." />
         </div>
       ) : (
         <div className="min-h-0 overflow-x-auto overflow-y-hidden bg-gradient-to-b from-card/60 to-muted/20 p-4">
@@ -320,8 +315,9 @@ export function ActionKanbanBoard({
               const tone = ACTION_STATUS_TONES[status]
 
               return (
-                <Card
+                <TonedCard
                   key={status}
+                  tint={tone.tint}
                   className={cn(
                     "grid h-full content-start gap-3 border-border/40 shadow-none transition-colors",
                     isDropTarget ? "border-foreground/30 bg-accent/60" : "bg-card/78",
@@ -353,9 +349,6 @@ export function ActionKanbanBoard({
                     setDraggedActionId(null)
                     setDropTargetStatus(null)
                   }}
-                  style={{
-                    backgroundImage: `linear-gradient(180deg, hsl(var(--card) / 0.98), hsl(var(--card) / 0.94)), radial-gradient(circle at top left, ${tone.tint}, transparent 68%)`,
-                  }}
                 >
                   <CardHeader className="gap-2 p-3 pb-0">
                     <div className="flex items-center justify-between gap-2">
@@ -366,11 +359,7 @@ export function ActionKanbanBoard({
 
                   <CardContent className="grid gap-3 p-3 pt-0">
                     {columnActions.length === 0 ? (
-                      <Card className="border-dashed border-border/50 bg-background/60 shadow-none">
-                        <CardContent className="p-3 text-xs leading-5 text-muted-foreground">
-                          Drop an action here.
-                        </CardContent>
-                      </Card>
+                      <EmptyState message="Drop an action here." size="sm" />
                     ) : null}
 
                     {columnActions.map((action) => {
@@ -378,8 +367,9 @@ export function ActionKanbanBoard({
                       const actionTone = ACTION_STATUS_TONES[action.status]
 
                       return (
-                        <Card
+                        <TonedCard
                           key={action.id}
+                          tint={actionTone.tint}
                           className={cn(
                             "border-border/40 shadow-sm transition-colors",
                             draggedActionId === action.id ? "bg-accent/70" : "bg-card/96",
@@ -396,7 +386,6 @@ export function ActionKanbanBoard({
                           }}
                           style={{
                             cursor: "grab",
-                            backgroundImage: `linear-gradient(180deg, hsl(var(--card) / 0.99), hsl(var(--card) / 0.95)), radial-gradient(circle at top left, ${actionTone.tint}, transparent 62%)`,
                           }}
                         >
                           <CardContent className="grid gap-3 p-3">
@@ -518,66 +507,36 @@ export function ActionKanbanBoard({
                             ) : null}
 
                             {pendingStatusComment ? (
-                              <Card className="border-border/40 bg-muted/35 shadow-none">
-                                <CardContent className="grid gap-2 p-3">
-                                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                                    Post status update
-                                  </div>
-                                  <div className="text-xs font-semibold text-foreground">
-                                    {ACTION_STATUS_LABELS[pendingStatusComment.fromStatus]} to{" "}
-                                    {ACTION_STATUS_LABELS[pendingStatusComment.toStatus]}
-                                  </div>
-                                  <Textarea
-                                    className="min-h-[72px] resize-y bg-background/80 text-xs leading-6"
-                                    onChange={(event) =>
-                                      setPendingStatusComments((current) => ({
-                                        ...current,
-                                        [action.id]: {
-                                          ...pendingStatusComment,
-                                          comment: event.target.value,
-                                        },
-                                      }))
-                                    }
-                                    onPointerDown={(event) => event.stopPropagation()}
-                                    placeholder="Optional note for the timeline..."
-                                    value={pendingStatusComment.comment}
-                                  />
-                                  <div className="flex flex-wrap gap-2">
-                                    <Button
-                                      onClick={() => {
-                                        onLogActionStatusChange(
-                                          action.id,
-                                          pendingStatusComment.fromStatus,
-                                          pendingStatusComment.toStatus,
-                                          pendingStatusComment.comment,
-                                        )
-                                        dismissStatusComment(action.id)
-                                      }}
-                                      onPointerDown={(event) => event.stopPropagation()}
-                                      size="sm"
-                                      type="button"
-                                    >
-                                      Post to timeline
-                                    </Button>
-                                    <Button
-                                      onClick={() => dismissStatusComment(action.id)}
-                                      onPointerDown={(event) => event.stopPropagation()}
-                                      size="sm"
-                                      type="button"
-                                      variant="secondary"
-                                    >
-                                      Dismiss
-                                    </Button>
-                                  </div>
-                                </CardContent>
-                              </Card>
+                              <StatusUpdateCard
+                                comment={pendingStatusComment.comment}
+                                fromLabel={ACTION_STATUS_LABELS[pendingStatusComment.fromStatus]}
+                                toLabel={ACTION_STATUS_LABELS[pendingStatusComment.toStatus]}
+                                onChangeComment={(value) =>
+                                  setPendingStatusComments((current) => ({
+                                    ...current,
+                                    [action.id]: { ...pendingStatusComment, comment: value },
+                                  }))
+                                }
+                                onDismiss={() => dismissStatusComment(action.id)}
+                                onSubmit={() => {
+                                  onLogActionStatusChange(
+                                    action.id,
+                                    pendingStatusComment.fromStatus,
+                                    pendingStatusComment.toStatus,
+                                    pendingStatusComment.comment,
+                                  )
+                                  dismissStatusComment(action.id)
+                                }}
+                                stopPointerPropagation
+                                submitLabel="Post to timeline"
+                              />
                             ) : null}
                           </CardContent>
-                        </Card>
+                        </TonedCard>
                       )
                     })}
                   </CardContent>
-                </Card>
+                </TonedCard>
               )
             })}
           </div>

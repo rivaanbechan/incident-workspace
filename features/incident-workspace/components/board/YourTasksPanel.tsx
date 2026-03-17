@@ -2,15 +2,20 @@
 
 import { useState } from "react"
 
+import { EmptyState } from "@/components/shell/EmptyState"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select } from "@/components/ui/native-select"
-import { Textarea } from "@/components/ui/textarea"
+import { StatusUpdateCard } from "@/features/incident-workspace/components/board/StatusUpdateCard"
 import type {
   IncidentActionItem,
   IncidentActionStatus,
 } from "@/features/incident-workspace/lib/board/types"
+import {
+  ACTION_STATUS_LABELS,
+  ACTION_STATUS_ORDER,
+} from "@/features/incident-workspace/lib/board/constants"
 import { cn } from "@/lib/utils"
 
 type YourTasksPanelProps = {
@@ -32,14 +37,6 @@ type YourTasksPanelProps = {
   ) => void
 }
 
-const ACTION_STATUS_LABELS: Record<IncidentActionStatus, string> = {
-  blocked: "Blocked",
-  done: "Done",
-  in_progress: "In Progress",
-  open: "Open",
-}
-
-const STATUS_ORDER: IncidentActionStatus[] = ["open", "in_progress", "blocked", "done"]
 
 function getStatusClass(status: IncidentActionStatus) {
   switch (status) {
@@ -81,7 +78,7 @@ export function YourTasksPanel({
   )
 
   const orderedActions = [...visibleActions].sort((left, right) => {
-    const statusDelta = STATUS_ORDER.indexOf(left.status) - STATUS_ORDER.indexOf(right.status)
+    const statusDelta = ACTION_STATUS_ORDER.indexOf(left.status) - ACTION_STATUS_ORDER.indexOf(right.status)
 
     if (statusDelta !== 0) {
       return statusDelta
@@ -121,16 +118,11 @@ export function YourTasksPanel({
 
   if (orderedActions.length === 0) {
     return (
-      <Card className="border-dashed border-border/70 bg-card shadow-none">
-        <CardContent className="space-y-4 p-5 text-sm leading-6 text-muted-foreground">
-          <p>
-            No active tasks assigned to you right now. Open the action board to review shared work.
-          </p>
-          <Button onClick={onOpenActionBoard} type="button">
-            Open Action Board
-          </Button>
-        </CardContent>
-      </Card>
+      <EmptyState message="No active tasks assigned to you right now. Open the action board to review shared work.">
+        <Button onClick={onOpenActionBoard} type="button">
+          Open Action Board
+        </Button>
+      </EmptyState>
     )
   }
 
@@ -216,53 +208,27 @@ export function YourTasksPanel({
               ) : null}
 
               {pendingStatusComment ? (
-                <div className="grid gap-3 rounded-2xl border border-border/60 bg-background/80 p-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                    Post status update
-                  </div>
-                  <div className="text-xs font-semibold text-foreground">
-                    {ACTION_STATUS_LABELS[pendingStatusComment.fromStatus]} to{" "}
-                    {ACTION_STATUS_LABELS[pendingStatusComment.toStatus]}
-                  </div>
-                  <Textarea
-                    onChange={(event) =>
-                      setPendingStatusComments((current) => ({
-                        ...current,
-                        [action.id]: {
-                          ...pendingStatusComment,
-                          comment: event.target.value,
-                        },
-                      }))
-                    }
-                    placeholder="Optional note for the timeline..."
-                    value={pendingStatusComment.comment}
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      onClick={() => {
-                        onLogActionStatusChange(
-                          action.id,
-                          pendingStatusComment.fromStatus,
-                          pendingStatusComment.toStatus,
-                          pendingStatusComment.comment,
-                        )
-                        dismissStatusComment(action.id)
-                      }}
-                      size="sm"
-                      type="button"
-                    >
-                      Post Update
-                    </Button>
-                    <Button
-                      onClick={() => dismissStatusComment(action.id)}
-                      size="sm"
-                      type="button"
-                      variant="outline"
-                    >
-                      Dismiss
-                    </Button>
-                  </div>
-                </div>
+                <StatusUpdateCard
+                  comment={pendingStatusComment.comment}
+                  fromLabel={ACTION_STATUS_LABELS[pendingStatusComment.fromStatus]}
+                  toLabel={ACTION_STATUS_LABELS[pendingStatusComment.toStatus]}
+                  onChangeComment={(value) =>
+                    setPendingStatusComments((current) => ({
+                      ...current,
+                      [action.id]: { ...pendingStatusComment, comment: value },
+                    }))
+                  }
+                  onDismiss={() => dismissStatusComment(action.id)}
+                  onSubmit={() => {
+                    onLogActionStatusChange(
+                      action.id,
+                      pendingStatusComment.fromStatus,
+                      pendingStatusComment.toStatus,
+                      pendingStatusComment.comment,
+                    )
+                    dismissStatusComment(action.id)
+                  }}
+                />
               ) : null}
             </CardContent>
           </Card>

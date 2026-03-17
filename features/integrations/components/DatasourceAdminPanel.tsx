@@ -3,18 +3,19 @@
 import { apiRequest } from "@/lib/api/client"
 import { useCallback, useEffect, useMemo, useState } from "react"
 
+import { FormField } from "@/components/shell/FormField"
+import { SelectableCard } from "@/features/integrations/components/SelectableCard"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import type {
   DatasourceConnectionStatus,
   DatasourceDefinition,
   DatasourceInstallation,
 } from "@/lib/datasources"
-import { cn } from "@/lib/utils"
+import { formatTimestamp } from "@/lib/ui/formatters"
 
 type DatasourceCatalogResponse = {
   definitions: DatasourceDefinition[]
@@ -29,13 +30,6 @@ function slugify(value: string) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
-}
-
-function formatTimestamp(value: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value))
 }
 
 function createEmptyForm(vendor = "splunk") {
@@ -263,16 +257,11 @@ export function DatasourceAdminPanel() {
           const isSelected = definition.vendor === selectedVendor
 
           return (
-            <button
+            <SelectableCard
               key={definition.vendor}
-              className={cn(
-                "rounded-3xl border bg-card p-6 text-left shadow-sm transition hover:border-primary/30 hover:bg-muted/80",
-                isSelected
-                  ? "border-primary/40 bg-gradient-to-b from-card to-muted"
-                  : "border-border/70",
-              )}
+              isSelected={isSelected}
               onClick={() => selectVendor(definition.vendor)}
-              type="button"
+              size="lg"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="space-y-2">
@@ -321,7 +310,7 @@ export function DatasourceAdminPanel() {
                   <div className="mt-1 text-3xl font-semibold text-foreground">{instances.length}</div>
                 </div>
               </div>
-            </button>
+            </SelectableCard>
           )
         })}
       </section>
@@ -355,16 +344,10 @@ export function DatasourceAdminPanel() {
                 const isSelected = selectedInstanceId === instance.id
 
                 return (
-                  <button
+                  <SelectableCard
                     key={instance.id}
-                    className={cn(
-                      "rounded-2xl border p-4 text-left transition",
-                      isSelected
-                        ? "border-primary/40 bg-muted"
-                        : "border-border/70 bg-card hover:border-primary/20",
-                    )}
+                    isSelected={isSelected}
                     onClick={() => setSelectedInstanceId(instance.id)}
-                    type="button"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -381,7 +364,7 @@ export function DatasourceAdminPanel() {
                     <div className="mt-2 text-xs text-muted-foreground">
                       Updated {formatTimestamp(instance.updatedAt)}
                     </div>
-                  </button>
+                  </SelectableCard>
                 )
               })}
             </div>
@@ -413,50 +396,46 @@ export function DatasourceAdminPanel() {
           <CardContent className="grid gap-5">
             <div className="grid gap-4 rounded-3xl bg-muted/30 p-5">
               <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
-                <div className="grid gap-2">
-                  <Label htmlFor="vendor">Vendor</Label>
+                <FormField htmlFor="vendor" label="Vendor">
                   <Input
                     disabled
                     id="vendor"
                     value={selectedDefinition?.title || form.vendor}
                   />
-                </div>
+                </FormField>
 
-                <div className="grid gap-2">
-                  <Label htmlFor="instance-id">Instance ID</Label>
+                <FormField htmlFor="instance-id" label="Instance ID">
                   <Input
                     id="instance-id"
                     onChange={(event) => updateForm("id", event.target.value)}
                     placeholder={`${selectedVendor}-prod`}
                     value={form.id}
                   />
-                </div>
+                </FormField>
               </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="display-title">Display title</Label>
+              <FormField htmlFor="display-title" label="Display title">
                 <Input
                   id="display-title"
                   onChange={(event) => updateForm("title", event.target.value)}
                   placeholder={`${selectedDefinition?.title || "Datasource"} Prod`}
                   value={form.title}
                 />
-              </div>
+              </FormField>
 
-              <div className="grid gap-2">
-                <Label htmlFor="base-url">Base URL</Label>
+              <FormField htmlFor="base-url" label="Base URL">
                 <Input
                   id="base-url"
                   onChange={(event) => updateForm("baseUrl", event.target.value)}
                   placeholder="https://api.example.com"
                   value={form.baseUrl}
                 />
-              </div>
+              </FormField>
 
-              <div className="grid gap-2">
-                <Label htmlFor="token">
-                  Token {selectedInstance ? "(enter only to rotate)" : ""}
-                </Label>
+              <FormField
+                htmlFor="token"
+                label={<>Token {selectedInstance ? "(enter only to rotate)" : ""}</>}
+              >
                 <Input
                   id="token"
                   onChange={(event) => updateForm("token", event.target.value)}
@@ -466,7 +445,7 @@ export function DatasourceAdminPanel() {
                   type="password"
                   value={form.token}
                 />
-              </div>
+              </FormField>
 
               <label className="flex items-center gap-3 text-sm font-medium text-foreground">
                 <Checkbox

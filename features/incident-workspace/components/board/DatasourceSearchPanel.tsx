@@ -11,6 +11,8 @@ import type {
   DatasourceSearchRow,
   SavedDatasourceResultSet,
 } from "@/lib/datasources"
+import { EmptyState } from "@/components/shell/EmptyState"
+import { FormField } from "@/components/shell/FormField"
 import { useToast } from "@/components/shell/ToastProvider"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -21,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { getIntegrationsHref } from "@/features/integrations/manifest"
 import Link from "next/link"
 import { apiRequest } from "@/lib/api/client"
+import { formatTimestamp } from "@/lib/ui/formatters"
 import { useCallback, useEffect, useRef, useState } from "react"
 
 type DatasourceSearchPanelProps = {
@@ -82,13 +85,6 @@ const QUERY_TEMPLATES: Array<{ label: string; value: string }> = [
     value: "index=* (EventCode=4657 OR sourcetype=*registry*) | table _time host user registry_path registry_value_name | head 50",
   },
 ]
-
-function formatTimestamp(value: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value))
-}
 
 // Long values like SHA256 hashes (64 chars) will blow out badge width. Truncate for display only.
 function truncateLabel(label: string, max = 32): string {
@@ -592,21 +588,20 @@ export function DatasourceSearchPanel({
         </CardHeader>
         <CardContent className="grid gap-4 p-4 pt-0">
           {!isLoadingCatalog && datasources.length === 0 ? (
-            <Card className="border-dashed border-border/70 bg-card shadow-none">
-              <CardContent className="p-4 text-sm leading-6 text-foreground">
-                No enabled datasource instances are available for this room. Configure one in{" "}
-                <Link href={getIntegrationsHref()} className="font-semibold text-foreground">
-                  Integrations
-                </Link>
-                .
-              </CardContent>
-            </Card>
+            <EmptyState
+              message={
+                <>
+                  No enabled datasource instances are available for this room. Configure one in{" "}
+                  <Link href={getIntegrationsHref()} className="font-semibold text-foreground">
+                    Integrations
+                  </Link>
+                  .
+                </>
+              }
+            />
           ) : null}
 
-          <label className="grid gap-1.5">
-            <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-              Datasource
-            </span>
+          <FormField variant="compact" label="Datasource">
             <Select
               value={datasourceId}
               onChange={(event) => setDatasourceId(event.target.value)}
@@ -618,12 +613,9 @@ export function DatasourceSearchPanel({
                 </option>
               ))}
             </Select>
-          </label>
+          </FormField>
 
-          <label className="grid gap-1.5">
-            <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-              Query template
-            </span>
+          <FormField variant="compact" label="Query template">
             <Select
               value=""
               onChange={(event) => {
@@ -639,7 +631,7 @@ export function DatasourceSearchPanel({
                 </option>
               ))}
             </Select>
-          </label>
+          </FormField>
 
           {selectedEntityLabel ? (
             <div className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-muted/30 p-3">
@@ -663,35 +655,23 @@ export function DatasourceSearchPanel({
             </div>
           ) : null}
 
-          <label className="grid gap-1.5">
-            <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-              Query
-            </span>
+          <FormField variant="compact" label="Query">
             <Textarea
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               rows={5}
               className="resize-y font-mono text-xs"
             />
-          </label>
+          </FormField>
 
           <div className="grid grid-cols-3 gap-2.5">
-            <label className="grid gap-1.5">
-              <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                Earliest
-              </span>
+            <FormField variant="compact" label="Earliest">
               <Input value={earliestTime} onChange={(event) => setEarliestTime(event.target.value)} />
-            </label>
-            <label className="grid gap-1.5">
-              <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                Latest
-              </span>
+            </FormField>
+            <FormField variant="compact" label="Latest">
               <Input value={latestTime} onChange={(event) => setLatestTime(event.target.value)} />
-            </label>
-            <label className="grid gap-1.5">
-              <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                Page size
-              </span>
+            </FormField>
+            <FormField variant="compact" label="Page size">
               <Input
                 value={limit}
                 onChange={(event) => {
@@ -699,7 +679,7 @@ export function DatasourceSearchPanel({
                   setCurrentOffset(0)
                 }}
               />
-            </label>
+            </FormField>
           </div>
 
           <div className="flex flex-wrap gap-2">

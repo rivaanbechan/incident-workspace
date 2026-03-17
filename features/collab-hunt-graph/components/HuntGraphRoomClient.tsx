@@ -12,10 +12,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Select } from "@/components/ui/native-select"
 import { Textarea } from "@/components/ui/textarea"
+import { FormField } from "@/components/shell/FormField"
 import { apiRequest } from "@/lib/api/client"
+import { formatTimestamp } from "@/lib/ui/formatters"
 import { getHuntGraphAdapters } from "@/features/collab-hunt-graph/lib/adapters"
 import type {
   HuntGraphEdge,
@@ -39,13 +40,6 @@ type HuntGraphRoomClientProps = {
   initialSavedViews: SavedHuntGraphViewRecord[]
   initialView: SavedHuntGraphViewDetail | null
   roomId: string
-}
-
-function formatTimestamp(value: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value))
 }
 
 function buildEmptyStateMessage(nodes: HuntGraphNode[], edges: HuntGraphEdge[]) {
@@ -498,8 +492,7 @@ export function HuntGraphRoomClient({
                 <CardTitle className="text-lg">Datasource</CardTitle>
               </CardHeader>
               <CardContent className="grid gap-3">
-                <div className="grid gap-2">
-                  <Label htmlFor="adapter">Adapter</Label>
+                <FormField htmlFor="adapter" label="Adapter">
                   <Select
                     id="adapter"
                     onChange={(event) => setAdapterAndQuery(event.target.value, query)}
@@ -511,9 +504,8 @@ export function HuntGraphRoomClient({
                       </option>
                     ))}
                   </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="hunt-query">Hunt query</Label>
+                </FormField>
+                <FormField htmlFor="hunt-query" label="Hunt query">
                   <Textarea
                     id="hunt-query"
                     onChange={(event) =>
@@ -523,7 +515,7 @@ export function HuntGraphRoomClient({
                     rows={4}
                     value={query}
                   />
-                </div>
+                </FormField>
                 <Button onClick={loadGraphFromAdapter} type="button">
                   Load Shared Graph
                 </Button>

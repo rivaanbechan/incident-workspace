@@ -1,4 +1,3 @@
-import type { ReactNode } from "react"
 import {
   archiveCaseAction,
   deleteCasePermanentlyAction,
@@ -9,7 +8,19 @@ import {
   updateCaseMetadataAction,
 } from "@/features/cases/actions"
 import { removeCaseMembershipAction, upsertCaseMembershipAction } from "@/features/admin/actions"
+import { CaseRecordCard } from "@/features/cases/components/CaseRecordCard"
+import { Section } from "@/features/cases/components/Section"
+import { EmptyState } from "@/components/shell/EmptyState"
+import { MiniStatGrid } from "@/components/shell/MiniStatGrid"
+import { TimelineEntry } from "@/components/shell/TimelineEntry"
+import {
+  formatTimestamp,
+  getActionStatusBadgeVariant,
+  getSeverityBadgeVariant,
+  getStatusBadgeVariant,
+} from "@/features/cases/lib/formatters"
 import { AppShell } from "@/components/shell/AppShell"
+import { FormField } from "@/components/shell/FormField"
 import { PageHeader } from "@/components/shell/PageHeader"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -34,7 +45,6 @@ import { CASE_ROLE_LABELS } from "@/lib/auth/permissions"
 import { requireCasePermissionByCaseId } from "@/lib/auth/access"
 import type { PersistedInvestigationArtifact } from "@/lib/contracts/artifacts"
 import type { InvestigationCaseRecord } from "@/lib/contracts/caseRecords"
-import type { InvestigationSeverity, InvestigationStatus } from "@/lib/contracts/investigations"
 import { listRoomArtifacts } from "@/lib/db/artifacts"
 import { listCaseMemberships } from "@/lib/db/auth"
 import { listInvestigationCaseRecords } from "@/lib/db/caseRecords"
@@ -60,15 +70,6 @@ import {
 type CaseDetailPageProps = {
   caseId: string
   selectedEntityId?: string | null
-}
-
-function formatTimestamp(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    month: "short",
-  }).format(new Date(value))
 }
 
 function formatTimelineDay(value: number) {
@@ -163,53 +164,6 @@ function isSavedEvidenceSetArtifact(artifact: PersistedInvestigationArtifact) {
 
   const rows = artifact.payload?.rows
   return Array.isArray(rows)
-}
-
-function getActionStatusBadgeVariant(status: string): "critical" | "success" | "info" | "muted" {
-  switch (status) {
-    case "blocked": return "critical"
-    case "done": return "success"
-    case "in_progress": return "info"
-    case "open":
-    default: return "muted"
-  }
-}
-
-function getSeverityBadgeVariant(severity: InvestigationSeverity): "critical" | "warning" | "success" {
-  switch (severity) {
-    case "critical": return "critical"
-    case "high":
-    case "medium": return "warning"
-    case "low":
-    default: return "success"
-  }
-}
-
-function getStatusBadgeVariant(status: InvestigationStatus): "muted" | "success" | "default" | "info" {
-  switch (status) {
-    case "closed": return "muted"
-    case "mitigated": return "success"
-    case "monitoring": return "info"
-    case "open":
-    default: return "default"
-  }
-}
-
-function Section({
-  children,
-  title,
-}: {
-  children: ReactNode
-  title: string
-}) {
-  return (
-    <Card className="border-border/60 bg-card shadow-sm">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg">{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-4">{children}</CardContent>
-    </Card>
-  )
 }
 
 function csvList(values: unknown) {
@@ -408,17 +362,14 @@ export async function CaseDetailPage({ caseId, selectedEntityId = null }: CaseDe
             <Section title="Case Metadata">
               <form action={updateCaseMetadataAction} className="grid gap-3">
                 <input type="hidden" name="caseId" value={investigation.id} />
-                <div className="grid gap-2">
-                  <Label htmlFor="case-title">Title</Label>
+                <FormField htmlFor="case-title" label="Title">
                   <Input id="case-title" name="title" defaultValue={investigation.title} />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="case-summary">Summary</Label>
+                </FormField>
+                <FormField htmlFor="case-summary" label="Summary">
                   <Textarea id="case-summary" name="summary" defaultValue={investigation.summary} rows={6} />
-                </div>
+                </FormField>
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="grid gap-2">
-                    <Label htmlFor="case-status">Status</Label>
+                  <FormField htmlFor="case-status" label="Status">
                     <Select name="status" defaultValue={investigation.status}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select status" />
@@ -430,9 +381,8 @@ export async function CaseDetailPage({ caseId, selectedEntityId = null }: CaseDe
                         <SelectItem value="closed">Closed</SelectItem>
                       </SelectContent>
                     </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="case-severity">Severity</Label>
+                  </FormField>
+                  <FormField htmlFor="case-severity" label="Severity">
                     <Select name="severity" defaultValue={investigation.severity}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select severity" />
@@ -444,11 +394,10 @@ export async function CaseDetailPage({ caseId, selectedEntityId = null }: CaseDe
                         <SelectItem value="critical">Critical</SelectItem>
                       </SelectContent>
                     </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="case-owner">Owner</Label>
+                  </FormField>
+                  <FormField htmlFor="case-owner" label="Owner">
                     <Input id="case-owner" name="owner" defaultValue={investigation.owner} />
-                  </div>
+                  </FormField>
                 </div>
                 <Button type="submit">Save Metadata</Button>
               </form>
@@ -569,24 +518,16 @@ export async function CaseDetailPage({ caseId, selectedEntityId = null }: CaseDe
                 <div className="text-sm text-muted-foreground">No case findings recorded yet.</div>
               ) : (
                 recordFindings.map((item) => (
-                  <article key={item.id} className="grid gap-2 rounded-2xl bg-muted p-4">
-                    <div className="flex items-center justify-between gap-2">
-                      <Badge variant="info" className="uppercase tracking-[0.12em]">Case Record</Badge>
-                      <form action={removeCaseRecordAction}>
-                        <input type="hidden" name="caseId" value={investigation.id} />
-                        <input type="hidden" name="recordId" value={item.id} />
-                        <Button size="sm" type="submit" variant="destructive">Remove From Case</Button>
-                      </form>
-                    </div>
-                    <div className="text-[15px] font-bold text-foreground">{item.title}</div>
-                    <div className="text-sm leading-relaxed text-muted-foreground">{item.summary}</div>
-                    {csvList(item.payload.linkedEvidenceSetIds) ? (
-                      <div className="text-xs text-muted-foreground">Evidence sets: {csvList(item.payload.linkedEvidenceSetIds)}</div>
-                    ) : null}
-                    {csvList(item.payload.linkedArtifactIds) ? (
-                      <div className="text-xs text-muted-foreground">Artifacts: {csvList(item.payload.linkedArtifactIds)}</div>
-                    ) : null}
-                  </article>
+                  <CaseRecordCard
+                    key={item.id}
+                    caseId={investigation.id}
+                    recordId={item.id}
+                    badgeVariant="info"
+                    title={item.title}
+                    summary={item.summary}
+                    linkedEvidenceSetIds={csvList(item.payload.linkedEvidenceSetIds) || undefined}
+                    linkedArtifactIds={csvList(item.payload.linkedArtifactIds) || undefined}
+                  />
                 ))
               )}
             </Section>
@@ -599,23 +540,15 @@ export async function CaseDetailPage({ caseId, selectedEntityId = null }: CaseDe
                   </div>
                 ) : (
                   recordHypotheses.map((item) => (
-                    <article key={item.id} className="grid gap-2 rounded-2xl bg-muted p-4">
-                      <div className="flex items-center justify-between gap-2">
-                        <Badge variant="default" className="uppercase tracking-[0.12em]">Case Record</Badge>
-                        <form action={removeCaseRecordAction}>
-                          <input type="hidden" name="caseId" value={investigation.id} />
-                          <input type="hidden" name="recordId" value={item.id} />
-                          <Button size="sm" type="submit" variant="destructive">Remove From Case</Button>
-                        </form>
-                      </div>
-                      <div className="text-[15px] font-bold text-foreground">{item.title}</div>
-                      <div className="text-sm leading-relaxed text-muted-foreground">{item.summary}</div>
-                      {csvList(item.payload.linkedEvidenceSetIds) ? (
-                        <div className="text-xs text-muted-foreground">
-                          Evidence sets: {csvList(item.payload.linkedEvidenceSetIds)}
-                        </div>
-                      ) : null}
-                    </article>
+                    <CaseRecordCard
+                      key={item.id}
+                      caseId={investigation.id}
+                      recordId={item.id}
+                      badgeVariant="default"
+                      title={item.title}
+                      summary={item.summary}
+                      linkedEvidenceSetIds={csvList(item.payload.linkedEvidenceSetIds) || undefined}
+                    />
                   ))
                 )}
               </Section>
@@ -627,23 +560,15 @@ export async function CaseDetailPage({ caseId, selectedEntityId = null }: CaseDe
                   </div>
                 ) : (
                   recordDecisions.map((item) => (
-                    <article key={item.id} className="grid gap-2 rounded-2xl bg-muted p-4">
-                      <div className="flex items-center justify-between gap-2">
-                        <Badge variant="critical" className="uppercase tracking-[0.12em]">Case Record</Badge>
-                        <form action={removeCaseRecordAction}>
-                          <input type="hidden" name="caseId" value={investigation.id} />
-                          <input type="hidden" name="recordId" value={item.id} />
-                          <Button size="sm" type="submit" variant="destructive">Remove From Case</Button>
-                        </form>
-                      </div>
-                      <div className="text-[15px] font-bold text-foreground">{item.title}</div>
-                      <div className="text-sm leading-relaxed text-muted-foreground">{item.summary}</div>
-                      {csvList(item.payload.linkedEvidenceSetIds) ? (
-                        <div className="text-xs text-muted-foreground">
-                          Evidence sets: {csvList(item.payload.linkedEvidenceSetIds)}
-                        </div>
-                      ) : null}
-                    </article>
+                    <CaseRecordCard
+                      key={item.id}
+                      caseId={investigation.id}
+                      recordId={item.id}
+                      badgeVariant="critical"
+                      title={item.title}
+                      summary={item.summary}
+                      linkedEvidenceSetIds={csvList(item.payload.linkedEvidenceSetIds) || undefined}
+                    />
                   ))
                 )}
               </Section>
@@ -674,28 +599,16 @@ export async function CaseDetailPage({ caseId, selectedEntityId = null }: CaseDe
                   </div>
                 ) : (
                   recordEvidence.map((item) => (
-                    <article key={item.id} className="grid gap-2 rounded-2xl bg-muted p-4">
-                      <div className="flex items-center justify-between gap-2">
-                        <Badge variant="success" className="uppercase tracking-[0.12em]">Case Record</Badge>
-                        <form action={removeCaseRecordAction}>
-                          <input type="hidden" name="caseId" value={investigation.id} />
-                          <input type="hidden" name="recordId" value={item.id} />
-                          <Button size="sm" type="submit" variant="destructive">Remove From Case</Button>
-                        </form>
-                      </div>
-                      <div className="text-[15px] font-bold text-foreground">{item.title}</div>
-                      <div className="text-sm leading-relaxed text-muted-foreground">{item.summary}</div>
-                      {csvList(item.payload.linkedEvidenceSetIds) ? (
-                        <div className="text-xs text-muted-foreground">
-                          Evidence sets: {csvList(item.payload.linkedEvidenceSetIds)}
-                        </div>
-                      ) : null}
-                      {csvList(item.payload.linkedArtifactIds) ? (
-                        <div className="text-xs text-muted-foreground">
-                          Artifacts: {csvList(item.payload.linkedArtifactIds)}
-                        </div>
-                      ) : null}
-                    </article>
+                    <CaseRecordCard
+                      key={item.id}
+                      caseId={investigation.id}
+                      recordId={item.id}
+                      badgeVariant="success"
+                      title={item.title}
+                      summary={item.summary}
+                      linkedEvidenceSetIds={csvList(item.payload.linkedEvidenceSetIds) || undefined}
+                      linkedArtifactIds={csvList(item.payload.linkedArtifactIds) || undefined}
+                    />
                   ))
                 )}
               </Section>
@@ -707,14 +620,16 @@ export async function CaseDetailPage({ caseId, selectedEntityId = null }: CaseDe
                   </div>
                 ) : (
                   importedArtifacts.map((item) => (
-                    <div key={item.id} className="grid gap-2 rounded-2xl bg-muted p-4 text-sm leading-relaxed text-foreground">
-                      <Badge variant="muted" className="uppercase tracking-[0.12em] w-fit">Imported Artifact</Badge>
-                      <div className="font-bold text-foreground">{item.title}</div>
-                      <div>{item.summary}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {item.kind} · {formatTimestamp(item.persistedAt)}
-                      </div>
-                    </div>
+                    <Card key={item.id} className="border-border/50 shadow-none">
+                      <CardContent className="grid gap-2 p-4">
+                        <Badge variant="muted" className="uppercase tracking-[0.12em] w-fit">Imported Artifact</Badge>
+                        <div className="break-all text-sm font-bold text-foreground">{item.title}</div>
+                        <div className="break-all text-sm leading-relaxed text-muted-foreground">{item.summary}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {item.kind} · {formatTimestamp(item.persistedAt)}
+                        </div>
+                      </CardContent>
+                    </Card>
                   ))
                 )}
               </Section>
@@ -741,9 +656,9 @@ export async function CaseDetailPage({ caseId, selectedEntityId = null }: CaseDe
                             className={`grid gap-2 rounded-2xl border p-4 no-underline transition-colors ${isSelected ? "border-info/40 bg-info/15" : "border-border/40 bg-muted hover:bg-muted"}`}
                           >
                             <div className="flex flex-wrap items-center justify-between gap-2">
-                              <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.06em] text-foreground">
+                              <Badge variant="outline" className="uppercase tracking-[0.06em]">
                                 {entity.kind}
-                              </span>
+                              </Badge>
                               <span className="text-[11px] font-bold text-muted-foreground">
                                 {entity.caseRecordCount} records · {entity.evidenceSetCount} sets
                               </span>
@@ -754,16 +669,12 @@ export async function CaseDetailPage({ caseId, selectedEntityId = null }: CaseDe
                             <div className="break-all text-xs text-muted-foreground">
                               {entity.value}
                             </div>
-                            <div className="grid grid-cols-2 gap-2">
-                              <div className="rounded-xl bg-white/75 px-2.5 py-2">
-                                <div className="text-[10px] font-bold uppercase text-muted-foreground">Findings</div>
-                                <div className="text-base font-bold text-foreground">{entity.findingCount}</div>
-                              </div>
-                              <div className="rounded-xl bg-white/75 px-2.5 py-2">
-                                <div className="text-[10px] font-bold uppercase text-muted-foreground">Actions</div>
-                                <div className="text-base font-bold text-foreground">{entity.openActionCount}</div>
-                              </div>
-                            </div>
+                            <MiniStatGrid
+                              stats={[
+                                { label: "Findings", value: entity.findingCount },
+                                { label: "Actions", value: entity.openActionCount },
+                              ]}
+                            />
                           </Link>
                         )
                       })}
@@ -773,9 +684,9 @@ export async function CaseDetailPage({ caseId, selectedEntityId = null }: CaseDe
                       <div id="linked-entity-detail" className="grid gap-4 rounded-2xl border border-border/20 bg-muted p-4">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div className="grid gap-1.5">
-                            <span className="inline-flex w-fit items-center rounded-full bg-muted px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.06em] text-foreground">
+                            <Badge variant="outline" className="uppercase tracking-[0.06em] w-fit">
                               {selectedEntityDetail.kind}
-                            </span>
+                            </Badge>
                             <div className="text-lg font-bold text-foreground">{selectedEntityDetail.label}</div>
                             <div className="text-sm text-muted-foreground">{selectedEntityDetail.value}</div>
                           </div>
@@ -788,18 +699,15 @@ export async function CaseDetailPage({ caseId, selectedEntityId = null }: CaseDe
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-2">
-                          {[
+                        <MiniStatGrid
+                          stats={[
                             { label: "Case Records", value: selectedEntityDetail.caseRecordCount },
                             { label: "Artifacts", value: selectedEntityDetail.artifactCount },
                             { label: "Evidence Sets", value: selectedEntityDetail.evidenceSetCount },
-                          ].map((item) => (
-                            <div key={item.label} className="rounded-xl bg-white/80 px-3 py-2.5">
-                              <div className="text-[10px] font-bold uppercase text-muted-foreground">{item.label}</div>
-                              <div className="text-lg font-bold text-foreground">{item.value}</div>
-                            </div>
-                          ))}
-                        </div>
+                          ]}
+                          cellClassName="bg-muted/50 px-3 py-2.5"
+                          valueClassName="text-lg"
+                        />
 
                         {selectedEntityDetail.caseRecords.length > 0 ? (
                           <div className="grid gap-2">
@@ -809,7 +717,7 @@ export async function CaseDetailPage({ caseId, selectedEntityId = null }: CaseDe
                                 (link) => link.targetKind === "case-record" && link.targetId === record.id,
                               )
                               return (
-                                <div key={record.id} className="flex items-center justify-between gap-3 rounded-xl bg-white/80 p-3">
+                                <div key={record.id} className="flex items-center justify-between gap-3 rounded-xl bg-muted/50 p-3">
                                   <div className="grid gap-1">
                                     <div className="font-bold text-foreground">{record.title}</div>
                                     <div className="text-xs text-muted-foreground">{record.kind} · {formatTimestamp(record.updatedAt)}</div>
@@ -833,7 +741,7 @@ export async function CaseDetailPage({ caseId, selectedEntityId = null }: CaseDe
                           <div className="grid gap-2">
                             <div className="text-sm font-bold text-foreground">Linked Evidence Sets</div>
                             {selectedEntityDetail.evidenceSets.map((item) => (
-                              <div key={item.id} className="grid gap-1 rounded-xl bg-white/80 p-3">
+                              <div key={item.id} className="grid gap-1 rounded-xl bg-muted/50 p-3">
                                 <div className="font-bold text-foreground">{item.title}</div>
                                 <div className="text-xs text-muted-foreground">{item.resultCount} results</div>
                               </div>
@@ -845,7 +753,7 @@ export async function CaseDetailPage({ caseId, selectedEntityId = null }: CaseDe
                           <div className="grid gap-2">
                             <div className="text-sm font-bold text-foreground">Linked Imported Artifacts</div>
                             {selectedEntityDetail.artifacts.map((item) => (
-                              <div key={item.id} className="grid gap-1 rounded-xl bg-white/80 p-3">
+                              <div key={item.id} className="grid gap-1 rounded-xl bg-muted/50 p-3">
                                 <div className="font-bold text-foreground">{item.title}</div>
                                 <div className="text-xs text-muted-foreground">{item.kind}</div>
                               </div>
@@ -870,29 +778,32 @@ export async function CaseDetailPage({ caseId, selectedEntityId = null }: CaseDe
                   </div>
                 ) : (
                   recordActions.map((action) => (
-                    <article key={action.id} className="grid gap-2 rounded-2xl bg-muted p-4">
-                      <div className="flex items-center justify-between gap-2">
-                        <Badge variant="critical" className="uppercase tracking-[0.12em]">Case Record</Badge>
-                        <form action={removeCaseRecordAction}>
-                          <input type="hidden" name="caseId" value={investigation.id} />
-                          <input type="hidden" name="recordId" value={action.id} />
-                          <Button size="sm" type="submit" variant="destructive">Remove From Case</Button>
-                        </form>
-                      </div>
-                      <div className="text-[15px] font-bold text-foreground">{action.title}</div>
-                      <div className="text-sm leading-relaxed text-muted-foreground">{action.summary}</div>
-                      <div className="flex flex-wrap gap-2">
-                        <Badge variant="secondary">Owner: {action.payload.owner || "Unassigned"}</Badge>
-                        <Badge variant={getActionStatusBadgeVariant(typeof action.payload.status === "string" ? action.payload.status : "open")} className="capitalize">
-                          {typeof action.payload.status === "string"
-                            ? action.payload.status.replaceAll("_", " ")
-                            : "open"}
-                        </Badge>
-                        {typeof action.payload.dueAt === "string" && action.payload.dueAt.trim() ? (
-                          <Badge variant="info">Due {action.payload.dueAt}</Badge>
-                        ) : null}
-                      </div>
-                    </article>
+                    <CaseRecordCard
+                      key={action.id}
+                      caseId={investigation.id}
+                      recordId={action.id}
+                      badgeVariant="critical"
+                      title={action.title}
+                      summary={action.summary}
+                      footer={
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant="secondary">Owner: {action.payload.owner || "Unassigned"}</Badge>
+                          <Badge
+                            variant={getActionStatusBadgeVariant(
+                              typeof action.payload.status === "string" ? action.payload.status : "open",
+                            )}
+                            className="capitalize"
+                          >
+                            {typeof action.payload.status === "string"
+                              ? action.payload.status.replaceAll("_", " ")
+                              : "open"}
+                          </Badge>
+                          {typeof action.payload.dueAt === "string" && action.payload.dueAt.trim() ? (
+                            <Badge variant="info">Due {action.payload.dueAt}</Badge>
+                          ) : null}
+                        </div>
+                      }
+                    />
                   ))
                 )}
                 <Button asChild variant="secondary" size="sm" className="w-fit justify-start gap-2 text-xs">
@@ -921,118 +832,80 @@ export async function CaseDetailPage({ caseId, selectedEntityId = null }: CaseDe
               </CardHeader>
               {caseTimeline.length === 0 ? (
                 <div className="flex flex-1 items-center justify-center p-5">
-                  <Card className="w-full border-dashed border-border/60 bg-background/80 shadow-none">
-                    <CardContent className="p-5 text-center">
-                      <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-                        <Clock className="size-5 text-muted-foreground" />
-                      </div>
-                      <p className="text-sm font-medium text-foreground">No timeline entries yet</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Promote findings or feed updates into the case record to build the timeline.
-                      </p>
-                    </CardContent>
-                  </Card>
+                  <EmptyState
+                    icon={<Clock className="size-5 text-muted-foreground" />}
+                    heading="No timeline entries yet"
+                    message="Promote findings or feed updates into the case record to build the timeline."
+                  />
                 </div>
               ) : (
                 <div className="flex-1 overflow-y-auto p-4">
-                  <div className="grid gap-4">
+                  <div className="grid min-w-0 gap-4">
                     {caseTimeline.map((item, index) => {
                       const tone = getTimelineTone(item.type)
                       const currentDay = formatTimelineDay(item.createdAt)
                       const previousDay =
                         index > 0 ? formatTimelineDay(caseTimeline[index - 1].createdAt) : null
-                      const showDayHeader = currentDay !== previousDay
 
                       return (
-                        <div key={item.id} className="grid gap-3">
-                          {showDayHeader ? (
-                            <div className="flex items-center gap-3 pt-1">
-                              <div className="min-w-24 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                                {currentDay}
+                        <TimelineEntry
+                          key={item.id}
+                          currentDay={currentDay}
+                          previousDay={previousDay}
+                          timestampLabel={formatTimestamp(new Date(item.createdAt).toISOString())}
+                          secondaryLabel={getSourceLabel(item.source)}
+                          tone={tone}
+                        >
+                          <CardContent className="grid gap-3 p-4">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Badge
+                                  variant={getTimelineBadgeVariant(item.type)}
+                                  className="uppercase tracking-[0.12em]"
+                                >
+                                  {getTimelineTypeLabel(item.type)}
+                                </Badge>
+                                <Badge variant={getSourceBadgeVariant(item.source)}>
+                                  {getSourceLabel(item.source)}
+                                </Badge>
                               </div>
-                              <div className="h-px flex-1 bg-gradient-to-r from-border/40 to-border/0" />
-                            </div>
-                          ) : null}
-
-                          <article className="grid gap-3 sm:grid-cols-[72px_24px_minmax(0,1fr)]">
-                            <div className="grid content-start justify-items-start gap-1 pt-1 sm:justify-items-end">
-                              <div className="text-sm font-bold text-foreground">
-                                {formatTimestamp(new Date(item.createdAt).toISOString())}
-                              </div>
-                              <div className="text-xs font-medium text-muted-foreground">
-                                {getSourceLabel(item.source)}
-                              </div>
-                            </div>
-
-                            <div className="relative hidden min-h-24 justify-center sm:flex">
-                              <div className="absolute bottom-0 top-0 w-px bg-gradient-to-b from-border/10 via-border/40 to-border/10" />
-                              <div
-                                className="relative z-10 mt-2 size-3 rounded-full"
-                                style={{
-                                  background: tone.accent,
-                                  boxShadow: `0 0 0 4px ${tone.tint}`,
-                                }}
-                              />
+                              {item.source === "record" ? (
+                                <form action={removeCaseRecordAction}>
+                                  <input type="hidden" name="caseId" value={investigation.id} />
+                                  <input
+                                    type="hidden"
+                                    name="recordId"
+                                    value={item.id.replace("record-", "")}
+                                  />
+                                  <Button size="sm" type="submit" variant="ghost">
+                                    Remove
+                                  </Button>
+                                </form>
+                              ) : null}
                             </div>
 
-                            <Card
-                              className="border-border/50 bg-card/92 shadow-sm"
-                              style={{
-                                backgroundImage: `linear-gradient(180deg, hsl(var(--card) / 0.98), hsl(var(--card) / 0.94)), radial-gradient(circle at top left, ${tone.tint}, transparent 64%)`,
-                              }}
-                            >
-                              <CardContent className="grid gap-3 p-4">
-                                <div className="flex flex-wrap items-center justify-between gap-3">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <Badge
-                                      variant={getTimelineBadgeVariant(item.type)}
-                                      className="uppercase tracking-[0.12em]"
-                                    >
-                                      {getTimelineTypeLabel(item.type)}
-                                    </Badge>
-                                    <Badge variant={getSourceBadgeVariant(item.source)}>
-                                      {getSourceLabel(item.source)}
-                                    </Badge>
-                                  </div>
-                                  {item.source === "record" ? (
-                                    <form action={removeCaseRecordAction}>
-                                      <input type="hidden" name="caseId" value={investigation.id} />
-                                      <input
-                                        type="hidden"
-                                        name="recordId"
-                                        value={item.id.replace("record-", "")}
-                                      />
-                                      <Button size="sm" type="submit" variant="ghost">
-                                        Remove
-                                      </Button>
-                                    </form>
-                                  ) : null}
-                                </div>
+                            <div className="whitespace-pre-wrap break-all text-sm leading-7 text-foreground/85">
+                              {item.body}
+                            </div>
 
-                                <div className="whitespace-pre-wrap text-sm leading-7 text-foreground/85">
-                                  {item.body}
-                                </div>
-
-                                {(item.linkedActionIds.length > 0 || item.linkedEntityIds.length > 0) && (
-                                  <div className="mt-2 flex flex-wrap gap-2">
-                                    {item.linkedActionIds.length > 0 && (
-                                      <div className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-[10px] text-muted-foreground">
-                                        <CheckCircle2 className="size-3" />
-                                        {item.linkedActionIds.length} action{item.linkedActionIds.length === 1 ? "" : "s"}
-                                      </div>
-                                    )}
-                                    {item.linkedEntityIds.length > 0 && (
-                                      <div className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-[10px] text-muted-foreground">
-                                        <LayoutGrid className="size-3" />
-                                        {item.linkedEntityIds.length} entit{item.linkedEntityIds.length === 1 ? "y" : "ies"}
-                                      </div>
-                                    )}
+                            {(item.linkedActionIds.length > 0 || item.linkedEntityIds.length > 0) && (
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {item.linkedActionIds.length > 0 && (
+                                  <div className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-[10px] text-muted-foreground">
+                                    <CheckCircle2 className="size-3" />
+                                    {item.linkedActionIds.length} action{item.linkedActionIds.length === 1 ? "" : "s"}
                                   </div>
                                 )}
-                              </CardContent>
-                            </Card>
-                          </article>
-                        </div>
+                                {item.linkedEntityIds.length > 0 && (
+                                  <div className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-[10px] text-muted-foreground">
+                                    <LayoutGrid className="size-3" />
+                                    {item.linkedEntityIds.length} entit{item.linkedEntityIds.length === 1 ? "y" : "ies"}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </CardContent>
+                        </TimelineEntry>
                       )
                     })}
                   </div>

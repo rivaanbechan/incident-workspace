@@ -12,18 +12,13 @@ import {
   buildArtifactCasePromotionInput,
   createCaseRecordViaApi,
 } from "@/features/incident-workspace/lib/caseRecordPromotion"
+import { EmptyState } from "@/components/shell/EmptyState"
+import { formatTimestamp } from "@/lib/ui/formatters"
 
 type InvestigationArtifactsPanelProps = {
   linkedCaseId?: string | null
   onCreateActionFromArtifact?: (artifact: PersistedInvestigationArtifact) => void
   roomId: string
-}
-
-function formatTimestamp(value: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value))
 }
 
 export function InvestigationArtifactsPanel({
@@ -124,11 +119,7 @@ export function InvestigationArtifactsPanel({
       </Card>
 
       {artifacts.length === 0 ? (
-        <Card className="border-dashed border-border/70 bg-card shadow-none">
-          <CardContent className="p-5 text-sm leading-6 text-muted-foreground">
-            No promoted findings yet. Send one from the hunt graph to make it available in this rail.
-          </CardContent>
-        </Card>
+        <EmptyState message="No promoted findings yet. Send one from the hunt graph to make it available in this rail." />
       ) : null}
 
       {artifacts.map((artifact) => (

@@ -4,9 +4,9 @@ import { signIn } from "next-auth/react"
 import { useState } from "react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { FormField } from "@/components/shell/FormField"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 
 type LoginFormProps = {
   callbackUrl: string
@@ -48,8 +48,7 @@ export function LoginForm({ callbackUrl, errorMessage = "" }: LoginFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="grid gap-4">
-      <div className="grid gap-2">
-        <Label htmlFor="email">Email</Label>
+      <FormField htmlFor="email" label="Email">
         <Input
           autoComplete="email"
           id="email"
@@ -58,10 +57,9 @@ export function LoginForm({ callbackUrl, errorMessage = "" }: LoginFormProps) {
           type="email"
           value={email}
         />
-      </div>
+      </FormField>
 
-      <div className="grid gap-2">
-        <Label htmlFor="password">Password</Label>
+      <FormField htmlFor="password" label="Password">
         <Input
           autoComplete="current-password"
           id="password"
@@ -70,7 +68,7 @@ export function LoginForm({ callbackUrl, errorMessage = "" }: LoginFormProps) {
           type="password"
           value={password}
         />
-      </div>
+      </FormField>
 
       {localError ? (
         <Alert variant="destructive">

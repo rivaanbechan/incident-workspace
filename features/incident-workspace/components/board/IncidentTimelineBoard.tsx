@@ -1,5 +1,7 @@
 "use client"
 
+import { EmptyState } from "@/components/shell/EmptyState"
+import { TimelineEntry } from "@/components/shell/TimelineEntry"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -389,12 +391,7 @@ export function IncidentTimelineBoard({
           <div className="min-h-0 overflow-y-auto pr-1">
             <div className="grid gap-4">
               {filteredEntries.length === 0 ? (
-                <Card className="border-dashed border-border/60 bg-background/80 shadow-none">
-                  <CardContent className="p-5 text-sm leading-6 text-muted-foreground">
-                    No timeline entries for this view yet. Use the quick entry panel to record
-                    the next decision, mitigation, update, or comms checkpoint.
-                  </CardContent>
-                </Card>
+                <EmptyState message="No timeline entries for this view yet. Use the quick entry panel to record the next decision, mitigation, update, or comms checkpoint." />
               ) : (
                 filteredEntries.map((entry, index) => {
                   const linkedActions = entry.linkedActionIds.map((actionId) => ({
@@ -404,141 +401,110 @@ export function IncidentTimelineBoard({
                   const currentDay = formatTimelineDay(entry.createdAt)
                   const previousEntry = index > 0 ? filteredEntries[index - 1] : null
                   const previousDay = previousEntry ? formatTimelineDay(previousEntry.createdAt) : null
-                  const showDayHeader = currentDay !== previousDay
                   const tone = TIMELINE_TONES[entry.type]
 
+
                   return (
-                    <div key={entry.id} className="grid gap-3">
-                      {showDayHeader ? (
-                        <div className="flex items-center gap-3 pt-1">
-                          <div className="min-w-24 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                            {currentDay}
+                    <TimelineEntry
+                      key={entry.id}
+                      currentDay={currentDay}
+                      previousDay={previousDay}
+                      timestampLabel={formatLogTimestamp(entry.createdAt)}
+                      secondaryLabel={entry.authorName}
+                      tone={tone}
+                    >
+                      <CardContent className="grid gap-3 p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span
+                              className="size-2.5 rounded-full"
+                              style={{ background: entry.authorColor }}
+                            />
+                            <Badge variant={tone.badge}>{TIMELINE_TYPE_LABELS[entry.type]}</Badge>
                           </div>
-                          <div className="h-px flex-1 bg-gradient-to-r from-border/40 to-border/0" />
-                        </div>
-                      ) : null}
 
-                      <article className="grid gap-3 sm:grid-cols-[72px_24px_minmax(0,1fr)]">
-                        <div className="grid content-start justify-items-start gap-1 pt-1 sm:justify-items-end">
-                          <div className="text-sm font-bold text-foreground">
-                            {formatLogTimestamp(entry.createdAt)}
+                          <div className="flex flex-wrap items-center gap-2">
+                            {entry.linkedActionIds.length === 0 ? (
+                              <Button
+                                onClick={() => onCreateActionFromEntry(entry.id)}
+                                size="sm"
+                                type="button"
+                                variant="outline"
+                              >
+                                Create action
+                              </Button>
+                            ) : (
+                              <Button
+                                onClick={onOpenActionBoard}
+                                size="sm"
+                                type="button"
+                                variant="outline"
+                              >
+                                Open actions
+                              </Button>
+                            )}
+                            {onPromoteEntry ? (
+                              <Button
+                                onClick={() => onPromoteEntry(entry)}
+                                size="sm"
+                                type="button"
+                                variant="secondary"
+                              >
+                                Promote to Case
+                              </Button>
+                            ) : null}
+                            <Button
+                              onClick={() => onDeleteEntry(entry.id)}
+                              size="sm"
+                              type="button"
+                              variant="ghost"
+                            >
+                              Delete
+                            </Button>
                           </div>
-                          <div className="text-xs font-medium text-muted-foreground">
-                            {entry.authorName}
-                          </div>
                         </div>
 
-                        <div className="relative hidden min-h-24 justify-center sm:flex">
-                          <div className="absolute bottom-0 top-0 w-px bg-gradient-to-b from-border/10 via-border/40 to-border/10" />
-                          <div
-                            className="relative z-10 mt-2 size-3 rounded-full"
-                            style={{
-                              background: tone.accent,
-                              boxShadow: `0 0 0 4px ${tone.tint}`,
-                            }}
-                          />
+                        <div className="whitespace-pre-wrap text-sm leading-7 text-foreground/85">
+                          {entry.body}
                         </div>
 
-                        <Card
-                          className="border-border/50 bg-card/92 shadow-sm"
-                          style={{
-                            backgroundImage: `linear-gradient(180deg, hsl(var(--card) / 0.98), hsl(var(--card) / 0.94)), radial-gradient(circle at top left, ${tone.tint}, transparent 64%)`,
-                          }}
-                        >
-                          <CardContent className="grid gap-3 p-4">
-                            <div className="flex flex-wrap items-center justify-between gap-3">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span
-                                  className="size-2.5 rounded-full"
-                                  style={{ background: entry.authorColor }}
-                                />
-                                <Badge variant={tone.badge}>{TIMELINE_TYPE_LABELS[entry.type]}</Badge>
-                              </div>
-
-                              <div className="flex flex-wrap items-center gap-2">
-                                {entry.linkedActionIds.length === 0 ? (
+                        {entry.linkedEntityIds.length > 0 || linkedActions.length > 0 ? (
+                          <div className="grid gap-2">
+                            {entry.linkedEntityIds.length > 0 ? (
+                              <div className="flex flex-wrap gap-2">
+                                {entry.linkedEntityIds.map((entityId) => (
                                   <Button
-                                    onClick={() => onCreateActionFromEntry(entry.id)}
+                                    key={entityId}
+                                    onClick={() => onSelectEntity(entityId)}
                                     size="sm"
                                     type="button"
-                                    variant="outline"
+                                    variant="secondary"
                                   >
-                                    Create action
+                                    {getEntityLabel(entityId)}
                                   </Button>
-                                ) : (
+                                ))}
+                              </div>
+                            ) : null}
+
+                            {linkedActions.length > 0 ? (
+                              <div className="flex flex-wrap gap-2">
+                                {linkedActions.map((action) => (
                                   <Button
+                                    key={action.id}
                                     onClick={onOpenActionBoard}
                                     size="sm"
                                     type="button"
                                     variant="outline"
                                   >
-                                    Open actions
+                                    {action.label}
                                   </Button>
-                                )}
-                                {onPromoteEntry ? (
-                                  <Button
-                                    onClick={() => onPromoteEntry(entry)}
-                                    size="sm"
-                                    type="button"
-                                    variant="secondary"
-                                  >
-                                    Promote to Case
-                                  </Button>
-                                ) : null}
-                                <Button
-                                  onClick={() => onDeleteEntry(entry.id)}
-                                  size="sm"
-                                  type="button"
-                                  variant="ghost"
-                                >
-                                  Delete
-                                </Button>
-                              </div>
-                            </div>
-
-                            <div className="whitespace-pre-wrap text-sm leading-7 text-foreground/85">
-                              {entry.body}
-                            </div>
-
-                            {entry.linkedEntityIds.length > 0 || linkedActions.length > 0 ? (
-                              <div className="grid gap-2">
-                                {entry.linkedEntityIds.length > 0 ? (
-                                  <div className="flex flex-wrap gap-2">
-                                    {entry.linkedEntityIds.map((entityId) => (
-                                      <Button
-                                        key={entityId}
-                                        onClick={() => onSelectEntity(entityId)}
-                                        size="sm"
-                                        type="button"
-                                        variant="secondary"
-                                      >
-                                        {getEntityLabel(entityId)}
-                                      </Button>
-                                    ))}
-                                  </div>
-                                ) : null}
-
-                                {linkedActions.length > 0 ? (
-                                  <div className="flex flex-wrap gap-2">
-                                    {linkedActions.map((action) => (
-                                      <Button
-                                        key={action.id}
-                                        onClick={onOpenActionBoard}
-                                        size="sm"
-                                        type="button"
-                                        variant="outline"
-                                      >
-                                        {action.label}
-                                      </Button>
-                                    ))}
-                                  </div>
-                                ) : null}
+                                ))}
                               </div>
                             ) : null}
-                          </CardContent>
-                        </Card>
-                      </article>
-                    </div>
+                          </div>
+                        ) : null}
+                      </CardContent>
+                    </TimelineEntry>
                   )
                 })
               )}
