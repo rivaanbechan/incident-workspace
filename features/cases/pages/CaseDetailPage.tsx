@@ -1,36 +1,26 @@
 import {
   archiveCaseAction,
   deleteCasePermanentlyAction,
-  linkInvestigationEntityAction,
-  removeCaseRecordAction,
   restoreCaseAction,
-  unlinkInvestigationEntityAction,
   updateCaseMetadataAction,
 } from "@/features/cases/actions"
 import { removeCaseMembershipAction, upsertCaseMembershipAction } from "@/features/admin/actions"
 import { CaseRecordCard } from "@/features/cases/components/CaseRecordCard"
 import { Section } from "@/features/cases/components/Section"
-import { EmptyState } from "@/components/shell/EmptyState"
-import { MiniStatGrid } from "@/components/shell/MiniStatGrid"
-import { TimelineEntry } from "@/components/shell/TimelineEntry"
 import {
   formatTimestamp,
   getActionStatusBadgeVariant,
   getSeverityBadgeVariant,
   getStatusBadgeVariant,
 } from "@/features/cases/lib/formatters"
+import { CaseTimelineAside } from "@/features/cases/components/CaseTimelineAside"
+import { LinkedEntitiesSection } from "@/features/cases/components/LinkedEntitiesSection"
 import { AppShell } from "@/components/shell/AppShell"
 import { FormField } from "@/components/shell/FormField"
 import { PageHeader } from "@/components/shell/PageHeader"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -57,90 +47,13 @@ import {
   listInvestigationEntitySummaries,
 } from "@/lib/db/investigationEntities"
 import { appModules } from "@/lib/modules/registry"
-import { getCollabHuntGraphHref } from "@/features/collab-hunt-graph/manifest"
 import Link from "next/link"
 import { notFound } from "next/navigation"
-import {
-  ArrowRight,
-  CheckCircle2,
-  Clock,
-  LayoutGrid,
-} from "lucide-react"
+import { ArrowRight } from "lucide-react"
 
 type CaseDetailPageProps = {
   caseId: string
   selectedEntityId?: string | null
-}
-
-function formatTimelineDay(value: number) {
-  return new Intl.DateTimeFormat(undefined, {
-    day: "2-digit",
-    month: "long",
-    weekday: "short",
-  }).format(new Date(value))
-}
-
-function getTimelineTypeLabel(type: string) {
-  switch (type) {
-    case "action":
-      return "Action"
-    case "decision":
-      return "Decision"
-    case "evidence":
-      return "Evidence"
-    case "finding":
-      return "Finding"
-    case "hypothesis":
-      return "Hypothesis"
-    case "mitigation":
-      return "Mitigation"
-    case "owner_change":
-      return "Owner Change"
-    case "comms":
-      return "Comms"
-    case "case_created":
-      return "Case Created"
-    case "metadata_updated":
-      return "Case Updated"
-    case "archived":
-      return "Case Archived"
-    case "restored":
-      return "Case Restored"
-    case "timeline-event":
-      return "Timeline Event"
-    default:
-      return "Update"
-  }
-}
-
-function getTimelineTone(type: string) {
-  switch (type) {
-    case "action":
-      return { accent: "#b91c1c", tint: "rgba(185, 28, 28, 0.14)" }
-    case "decision":
-      return { accent: "#2563eb", tint: "rgba(37, 99, 235, 0.14)" }
-    case "evidence":
-      return { accent: "#d97706", tint: "rgba(217, 119, 6, 0.14)" }
-    case "finding":
-      return { accent: "#0f766e", tint: "rgba(15, 118, 110, 0.14)" }
-    case "hypothesis":
-      return { accent: "#7c3aed", tint: "rgba(124, 58, 237, 0.14)" }
-    case "mitigation":
-      return { accent: "#16a34a", tint: "rgba(22, 163, 74, 0.14)" }
-    case "owner_change":
-      return { accent: "#d97706", tint: "rgba(217, 119, 6, 0.14)" }
-    case "comms":
-      return { accent: "#0891b2", tint: "rgba(8, 145, 178, 0.14)" }
-    case "case_created":
-    case "metadata_updated":
-    case "archived":
-    case "restored":
-      return { accent: "hsl(var(--muted-foreground))", tint: "hsl(var(--muted) / 0.55)" }
-    case "timeline-event":
-      return { accent: "#2563eb", tint: "rgba(37, 99, 235, 0.14)" }
-    default:
-      return { accent: "#2563eb", tint: "rgba(37, 99, 235, 0.14)" }
-  }
 }
 
 function summarizeArtifacts(
@@ -170,41 +83,6 @@ function csvList(values: unknown) {
   return Array.isArray(values)
     ? values.filter((value): value is string => typeof value === "string").join(", ")
     : ""
-}
-
-function getTimelineBadgeVariant(type: string): "critical" | "warning" | "info" | "default" | "success" | "muted" {
-  switch (type) {
-    case "action": return "critical"
-    case "decision": return "critical"
-    case "evidence": return "warning"
-    case "finding": return "info"
-    case "hypothesis": return "default"
-    case "mitigation": return "success"
-    case "owner_change": return "warning"
-    case "comms": return "info"
-    case "case_created":
-    case "metadata_updated":
-    case "archived":
-    case "restored": return "muted"
-    case "timeline-event": return "info"
-    default: return "info"
-  }
-}
-
-function getSourceBadgeVariant(source: string): "default" | "success" | "muted" {
-  switch (source) {
-    case "artifact": return "default"
-    case "record": return "success"
-    default: return "muted"
-  }
-}
-
-function getSourceLabel(source: string) {
-  switch (source) {
-    case "artifact": return "Artifact"
-    case "record": return "Promoted"
-    default: return "Case"
-  }
 }
 
 export async function CaseDetailPage({ caseId, selectedEntityId = null }: CaseDetailPageProps) {
@@ -634,137 +512,12 @@ export async function CaseDetailPage({ caseId, selectedEntityId = null }: CaseDe
                 )}
               </Section>
 
-              <Section title="Linked Entities">
-                {mergedLinkedEntities.length === 0 ? (
-                  <div className="text-sm text-muted-foreground">
-                    No durable linked entities recorded yet.
-                  </div>
-                ) : (
-                  <div className="grid gap-3">
-                    <div
-                      className="grid gap-3"
-                      style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
-                    >
-                      {mergedLinkedEntities.map((entity) => {
-                        const isSelected = selectedEntityDetail?.id === entity.id
-
-                        return (
-                          <Link
-                            key={entity.id}
-                            href={`/cases/${investigation.id}?entity=${encodeURIComponent(entity.id)}`}
-                            scroll={false}
-                            className={`grid gap-2 rounded-2xl border p-4 no-underline transition-colors ${isSelected ? "border-info/40 bg-info/15" : "border-border/40 bg-muted hover:bg-muted"}`}
-                          >
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <Badge variant="outline" className="uppercase tracking-[0.06em]">
-                                {entity.kind}
-                              </Badge>
-                              <span className="text-[11px] font-bold text-muted-foreground">
-                                {entity.caseRecordCount} records · {entity.evidenceSetCount} sets
-                              </span>
-                            </div>
-                            <div className="break-all text-sm font-bold leading-snug text-foreground">
-                              {entity.label}
-                            </div>
-                            <div className="break-all text-xs text-muted-foreground">
-                              {entity.value}
-                            </div>
-                            <MiniStatGrid
-                              stats={[
-                                { label: "Findings", value: entity.findingCount },
-                                { label: "Actions", value: entity.openActionCount },
-                              ]}
-                            />
-                          </Link>
-                        )
-                      })}
-                    </div>
-
-                    {selectedEntityDetail ? (
-                      <div id="linked-entity-detail" className="grid gap-4 rounded-2xl border border-border/20 bg-muted p-4">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div className="grid gap-1.5">
-                            <Badge variant="outline" className="uppercase tracking-[0.06em] w-fit">
-                              {selectedEntityDetail.kind}
-                            </Badge>
-                            <div className="text-lg font-bold text-foreground">{selectedEntityDetail.label}</div>
-                            <div className="text-sm text-muted-foreground">{selectedEntityDetail.value}</div>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            <Button asChild variant="secondary">
-                              <Link href={`${getCollabHuntGraphHref(investigation.roomId)}?entityId=${encodeURIComponent(selectedEntityDetail.id)}&entityLabel=${encodeURIComponent(selectedEntityDetail.label)}&entityKind=${encodeURIComponent(selectedEntityDetail.kind)}&entityValue=${encodeURIComponent(selectedEntityDetail.value)}`}>
-                                Open In Hunt Graph
-                              </Link>
-                            </Button>
-                          </div>
-                        </div>
-
-                        <MiniStatGrid
-                          stats={[
-                            { label: "Case Records", value: selectedEntityDetail.caseRecordCount },
-                            { label: "Artifacts", value: selectedEntityDetail.artifactCount },
-                            { label: "Evidence Sets", value: selectedEntityDetail.evidenceSetCount },
-                          ]}
-                          cellClassName="bg-muted/50 px-3 py-2.5"
-                          valueClassName="text-lg"
-                        />
-
-                        {selectedEntityDetail.caseRecords.length > 0 ? (
-                          <div className="grid gap-2">
-                            <div className="text-sm font-bold text-foreground">Linked Case Records</div>
-                            {selectedEntityDetail.caseRecords.map((record) => {
-                              const isLinked = selectedEntityDetail.links.some(
-                                (link) => link.targetKind === "case-record" && link.targetId === record.id,
-                              )
-                              return (
-                                <div key={record.id} className="flex items-center justify-between gap-3 rounded-xl bg-muted/50 p-3">
-                                  <div className="grid gap-1">
-                                    <div className="font-bold text-foreground">{record.title}</div>
-                                    <div className="text-xs text-muted-foreground">{record.kind} · {formatTimestamp(record.updatedAt)}</div>
-                                  </div>
-                                  <form action={isLinked ? unlinkInvestigationEntityAction : linkInvestigationEntityAction}>
-                                    <input type="hidden" name="caseId" value={investigation.id} />
-                                    <input type="hidden" name="entityId" value={selectedEntityDetail.id} />
-                                    <input type="hidden" name="targetKind" value="case-record" />
-                                    <input type="hidden" name="targetId" value={record.id} />
-                                    <Button size="sm" type="submit" variant={isLinked ? "destructive" : "secondary"}>
-                                      {isLinked ? "Unlink" : "Link"}
-                                    </Button>
-                                  </form>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        ) : null}
-
-                        {selectedEntityDetail.evidenceSets.length > 0 ? (
-                          <div className="grid gap-2">
-                            <div className="text-sm font-bold text-foreground">Linked Evidence Sets</div>
-                            {selectedEntityDetail.evidenceSets.map((item) => (
-                              <div key={item.id} className="grid gap-1 rounded-xl bg-muted/50 p-3">
-                                <div className="font-bold text-foreground">{item.title}</div>
-                                <div className="text-xs text-muted-foreground">{item.resultCount} results</div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : null}
-
-                        {selectedEntityDetail.artifacts.length > 0 ? (
-                          <div className="grid gap-2">
-                            <div className="text-sm font-bold text-foreground">Linked Imported Artifacts</div>
-                            {selectedEntityDetail.artifacts.map((item) => (
-                              <div key={item.id} className="grid gap-1 rounded-xl bg-muted/50 p-3">
-                                <div className="font-bold text-foreground">{item.title}</div>
-                                <div className="text-xs text-muted-foreground">{item.kind}</div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-                )}
-              </Section>
+              <LinkedEntitiesSection
+                caseId={investigation.id}
+                roomId={investigation.roomId}
+                entities={mergedLinkedEntities}
+                selectedEntityDetail={selectedEntityDetail}
+              />
             </div>
 
             <Section title="Open Actions">
@@ -815,112 +568,11 @@ export async function CaseDetailPage({ caseId, selectedEntityId = null }: CaseDe
             </Section>
           </div>
 
-          <aside className="sticky top-7 min-w-0 self-start xl:h-[calc(100vh-56px)]">
-            <Card className="flex h-full min-h-0 flex-col overflow-hidden border-border/50 bg-card/95 shadow-lg">
-              <CardHeader className="gap-4 border-b border-border/40 bg-gradient-to-b from-card via-card to-muted/20 pb-4 pt-4">
-                <div>
-                  <div>
-                    <CardTitle className="flex items-center gap-2 text-base font-semibold">
-                      <Clock className="size-4 text-muted-foreground" />
-                      Case Timeline
-                    </CardTitle>
-                    <CardDescription className="mt-1">
-                      Review promoted case activity and workspace milestones in one feed.
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              {caseTimeline.length === 0 ? (
-                <div className="flex flex-1 items-center justify-center p-5">
-                  <EmptyState
-                    icon={<Clock className="size-5 text-muted-foreground" />}
-                    heading="No timeline entries yet"
-                    message="Promote findings or feed updates into the case record to build the timeline."
-                  />
-                </div>
-              ) : (
-                <div className="flex-1 overflow-y-auto p-4">
-                  <div className="grid min-w-0 gap-4">
-                    {caseTimeline.map((item, index) => {
-                      const tone = getTimelineTone(item.type)
-                      const currentDay = formatTimelineDay(item.createdAt)
-                      const previousDay =
-                        index > 0 ? formatTimelineDay(caseTimeline[index - 1].createdAt) : null
-
-                      return (
-                        <TimelineEntry
-                          key={item.id}
-                          currentDay={currentDay}
-                          previousDay={previousDay}
-                          timestampLabel={formatTimestamp(new Date(item.createdAt).toISOString())}
-                          secondaryLabel={getSourceLabel(item.source)}
-                          tone={tone}
-                        >
-                          <CardContent className="grid gap-3 p-4">
-                            <div className="flex flex-wrap items-center justify-between gap-3">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <Badge
-                                  variant={getTimelineBadgeVariant(item.type)}
-                                  className="uppercase tracking-[0.12em]"
-                                >
-                                  {getTimelineTypeLabel(item.type)}
-                                </Badge>
-                                <Badge variant={getSourceBadgeVariant(item.source)}>
-                                  {getSourceLabel(item.source)}
-                                </Badge>
-                              </div>
-                              {item.source === "record" ? (
-                                <form action={removeCaseRecordAction}>
-                                  <input type="hidden" name="caseId" value={investigation.id} />
-                                  <input
-                                    type="hidden"
-                                    name="recordId"
-                                    value={item.id.replace("record-", "")}
-                                  />
-                                  <Button size="sm" type="submit" variant="ghost">
-                                    Remove
-                                  </Button>
-                                </form>
-                              ) : null}
-                            </div>
-
-                            <div className="whitespace-pre-wrap break-all text-sm leading-7 text-foreground/85">
-                              {item.body}
-                            </div>
-
-                            {(item.linkedActionIds.length > 0 || item.linkedEntityIds.length > 0) && (
-                              <div className="mt-2 flex flex-wrap gap-2">
-                                {item.linkedActionIds.length > 0 && (
-                                  <div className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-[10px] text-muted-foreground">
-                                    <CheckCircle2 className="size-3" />
-                                    {item.linkedActionIds.length} action{item.linkedActionIds.length === 1 ? "" : "s"}
-                                  </div>
-                                )}
-                                {item.linkedEntityIds.length > 0 && (
-                                  <div className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-[10px] text-muted-foreground">
-                                    <LayoutGrid className="size-3" />
-                                    {item.linkedEntityIds.length} entit{item.linkedEntityIds.length === 1 ? "y" : "ies"}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </CardContent>
-                        </TimelineEntry>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-              <div className="border-t border-border/40 bg-muted/20 p-3">
-                <Button asChild variant="secondary" size="sm" className="w-full justify-start gap-2 text-xs">
-                  <Link href={`/board/${investigation.roomId}?tab=feed`}>
-                    <ArrowRight className="size-3" />
-                    Continue in Workspace
-                  </Link>
-                </Button>
-              </div>
-            </Card>
-          </aside>
+          <CaseTimelineAside
+            caseId={investigation.id}
+            roomId={investigation.roomId}
+            timeline={caseTimeline}
+          />
         </div>
       </div>
     </AppShell>
