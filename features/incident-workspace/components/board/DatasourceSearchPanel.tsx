@@ -21,23 +21,79 @@ import { Textarea } from "@/components/ui/textarea"
 import { getIntegrationsHref } from "@/features/integrations/manifest"
 import Link from "next/link"
 import { apiRequest } from "@/lib/api/client"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
 type DatasourceSearchPanelProps = {
   linkedCaseId?: string | null
   onAddTimelineEntry: (input: { body: string; linkedEntityIds?: string[]; type: "update" }) => void
   roomId: string
+  selectedEntityLabel?: string | null
 }
 
 type DatasourceCatalogResponse = {
   datasources: DatasourceInstallation[]
 }
 
+const QUERY_TEMPLATES: Array<{ label: string; value: string }> = [
+  { label: "— Load a template —", value: "" },
+  { label: "Recent events (24h)", value: "index=* earliest=-24h | head 50" },
+  {
+    label: "Auth failures (EventCode 4625)",
+    value: "index=* sourcetype=WinEventLog:Security EventCode=4625 | table _time host user src_ip | head 50",
+  },
+  {
+    label: "Process creation (EventCode 4688)",
+    value: "index=* sourcetype=WinEventLog:Security EventCode=4688 | table _time host user process_name cmd_line | head 50",
+  },
+  {
+    label: "PowerShell execution",
+    value: 'index=* (Process_Command_Line=*powershell* OR cmd_line=*powershell* OR CommandLine=*powershell*) | head 50',
+  },
+  {
+    label: "Network connections (Zeek/Bro)",
+    value: "index=* sourcetype=zeek:conn | table _time id.orig_h id.resp_h id.resp_p proto | head 50",
+  },
+  {
+    label: "Failed logins — top offenders",
+    value: "index=* (action=failure OR EventCode=4625) | stats count by user src_ip | sort -count | head 25",
+  },
+  {
+    label: "Hash lookup (replace HASH)",
+    value: 'index=* (md5="HASH" OR sha256="HASH") | head 50',
+  },
+  {
+    label: "MITRE ATT&CK technique (replace T1XXX)",
+    value: 'index=* (mitre_technique_id="T1XXX" OR technique_id="T1XXX") | head 50',
+  },
+  {
+    label: "Top network talkers",
+    value: "index=* sourcetype=netflow | stats sum(bytes) as bytes by src_ip | sort -bytes | head 25",
+  },
+  {
+    label: "Lateral movement indicators",
+    value: "index=* EventCode IN (4624 4625 4648) src_ip!=dest_ip | head 50",
+  },
+  {
+    label: "DNS queries",
+    value: "index=* sourcetype=stream:dns | table _time src_ip query record_type | head 50",
+  },
+  {
+    label: "Registry modifications",
+    value: "index=* (EventCode=4657 OR sourcetype=*registry*) | table _time host user registry_path registry_value_name | head 50",
+  },
+]
+
 function formatTimestamp(value: string) {
   return new Intl.DateTimeFormat("en-US", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value))
+}
+
+// Long values like SHA256 hashes (64 chars) will blow out badge width. Truncate for display only.
+function truncateLabel(label: string, max = 32): string {
+  if (label.length <= max) return label
+  return `${label.slice(0, 10)}…${label.slice(-8)}`
 }
 
 function uniqueEntities(rows: DatasourceSearchRow[]) {
@@ -132,17 +188,56 @@ function buildTimelineBody(input: {
   return `${headline}\nQuery: ${input.query.trim()}\n${entitiesLine}\nLead result: ${resultLead}`
 }
 
+function RawEventView({ raw }: { raw: Record<string, unknown> }) {
+  const rawText = typeof raw._raw === "string" ? raw._raw.trim() : null
+  const fields = Object.entries(raw).filter(([key]) => !key.startsWith("_"))
+
+  return (
+    <div className="grid gap-3">
+      {rawText ? (
+        <div>
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            Raw event
+          </div>
+          <pre className="whitespace-pre-wrap break-all rounded-md bg-muted/60 p-2 font-mono text-[11px] leading-5 text-foreground">
+            {rawText}
+          </pre>
+        </div>
+      ) : null}
+      {fields.length > 0 ? (
+        <div>
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            Fields
+          </div>
+          <div className="grid gap-0.5">
+            {fields.map(([key, value]) => (
+              <div key={key} className="flex gap-2 font-mono text-[11px] leading-5">
+                <span className="shrink-0 text-muted-foreground">{key}</span>
+                <span className="break-all text-foreground">
+                  {typeof value === "string" ? value : JSON.stringify(value)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 export function DatasourceSearchPanel({
   linkedCaseId,
   onAddTimelineEntry,
   roomId,
+  selectedEntityLabel = null,
 }: DatasourceSearchPanelProps) {
   const [datasources, setDatasources] = useState<DatasourceInstallation[]>([])
   const [datasourceId, setDatasourceId] = useState("splunk")
-  const [query, setQuery] = useState('index=* earliest=-24h | head 25')
+  const [query, setQuery] = useState("index=* earliest=-24h | head 25")
   const [earliestTime, setEarliestTime] = useState("-24h")
   const [latestTime, setLatestTime] = useState("now")
   const [limit, setLimit] = useState("25")
+  const [currentOffset, setCurrentOffset] = useState(0)
   const [searchResult, setSearchResult] = useState<DatasourceSearchResult | null>(null)
   const [savedResultSets, setSavedResultSets] = useState<SavedDatasourceResultSet[]>([])
   const [searchStatus, setSearchStatus] = useState(
@@ -154,10 +249,24 @@ export function DatasourceSearchPanel({
   const [isAddingTimelineEntry, setIsAddingTimelineEntry] = useState(false)
   const [promotingRowId, setPromotingRowId] = useState<string | null>(null)
   const [promotingResultSetId, setPromotingResultSetId] = useState<string | null>(null)
+  const [expandedRowId, setExpandedRowId] = useState<string | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
   const { showToast } = useToast()
+
+  // Cancel any in-flight search when the component unmounts (e.g. user switches tab)
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort()
+    }
+  }, [])
 
   const selectedDatasource =
     datasources.find((datasource) => datasource.id === datasourceId) ?? null
+
+  const pageSize = Math.max(1, Number(limit) || 25)
+  const currentPage = Math.floor(currentOffset / pageSize)
+  const totalCount = searchResult?.totalCount ?? null
+  const totalPages = totalCount !== null ? Math.ceil(totalCount / pageSize) : null
 
   const loadSavedResultSets = useCallback(async () => {
     const payload = await apiRequest<SavedDatasourceResultSet[]>(
@@ -197,14 +306,20 @@ export function DatasourceSearchPanel({
     void Promise.all([loadCatalog(), loadSavedResultSets()]).catch(() => {})
   }, [loadCatalog, loadSavedResultSets])
 
-  const handleSearch = async () => {
+  const runSearch = async (offset: number) => {
     if (!selectedDatasource) {
       setSearchStatus("No enabled datasources are available. Configure one in Integrations.")
       return
     }
 
+    // Cancel any previous in-flight search before starting a new one
+    abortControllerRef.current?.abort()
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
     try {
       setIsSearching(true)
+      setExpandedRowId(null)
       setSearchStatus("Running datasource search. Results remain ephemeral until you save them.")
       const result = await apiRequest<DatasourceSearchResult>(
         `/api/datasources/${selectedDatasource.id}/search`,
@@ -213,20 +328,33 @@ export function DatasourceSearchPanel({
             caseId: linkedCaseId,
             earliestTime,
             latestTime,
-            limit: Number(limit),
+            limit: pageSize,
+            offset,
             query,
           }),
           headers: { "Content-Type": "application/json" },
           method: "POST",
+          signal: controller.signal,
         },
       )
       setSearchResult(result)
+      setCurrentOffset(offset)
+
+      const pageInfo =
+        result.totalCount > result.rowCount
+          ? ` (page ${Math.floor(offset / pageSize) + 1} of ${Math.ceil(result.totalCount / pageSize)}, ${result.totalCount} total)`
+          : ""
+
       setSearchStatus(
         result.rowCount > 0
-          ? `Returned ${result.rowCount} result${result.rowCount === 1 ? "" : "s"} in ${result.executionTimeMs}ms. Save the set or add it to the timeline if it matters.`
+          ? `Returned ${result.rowCount} result${result.rowCount === 1 ? "" : "s"} in ${result.executionTimeMs}ms${pageInfo}. Save the set or add it to the timeline if it matters.`
           : "Search completed with no matching results.",
       )
     } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        setSearchStatus("Search cancelled.")
+        return
+      }
       setSearchResult(null)
       setSearchStatus(
         error instanceof Error ? error.message : "Unable to execute datasource search.",
@@ -234,6 +362,29 @@ export function DatasourceSearchPanel({
     } finally {
       setIsSearching(false)
     }
+  }
+
+  const handleSearch = () => {
+    setCurrentOffset(0)
+    void runSearch(0)
+  }
+
+  const handleNextPage = () => {
+    const nextOffset = currentOffset + pageSize
+    void runSearch(nextOffset)
+  }
+
+  const handlePrevPage = () => {
+    const prevOffset = Math.max(0, currentOffset - pageSize)
+    void runSearch(prevOffset)
+  }
+
+  const handlePivotOnEntity = () => {
+    if (!selectedEntityLabel) return
+    const escaped = selectedEntityLabel.replace(/"/g, '\\"')
+    setQuery(`index=* "${escaped}" | head 50`)
+    setCurrentOffset(0)
+    void runSearch(0)
   }
 
   const handlePromote = async (row: DatasourceSearchRow) => {
@@ -363,9 +514,11 @@ export function DatasourceSearchPanel({
     setQuery(savedResultSet.query)
     setEarliestTime(savedResultSet.earliestTime ?? "")
     setLatestTime(savedResultSet.latestTime ?? "")
+    setCurrentOffset(0)
     setSearchResult({
       executionTimeMs: 0,
       rowCount: savedResultSet.resultCount,
+      totalCount: savedResultSet.resultCount,
       rows: savedResultSet.rows,
     })
     setSearchStatus(`Loaded saved evidence set "${savedResultSet.title}".`)
@@ -417,7 +570,16 @@ export function DatasourceSearchPanel({
               </CardDescription>
               <CardTitle className="mt-2 text-base">Datasource exploration</CardTitle>
             </div>
-            {searchResult ? <Badge variant="outline">{searchResult.rowCount} rows</Badge> : null}
+            {searchResult ? (
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="outline">{searchResult.rowCount} rows</Badge>
+                {totalPages !== null && totalPages > 1 ? (
+                  <Badge variant="secondary">
+                    Page {currentPage + 1} / {totalPages}
+                  </Badge>
+                ) : null}
+              </div>
+            ) : null}
           </div>
           <CardDescription className="text-sm leading-6">{searchStatus}</CardDescription>
           <CardDescription className="text-xs leading-6">
@@ -460,13 +622,56 @@ export function DatasourceSearchPanel({
 
           <label className="grid gap-1.5">
             <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              Query template
+            </span>
+            <Select
+              value=""
+              onChange={(event) => {
+                if (event.target.value) {
+                  setQuery(event.target.value)
+                  setCurrentOffset(0)
+                }
+              }}
+            >
+              {QUERY_TEMPLATES.map((template) => (
+                <option key={template.label} value={template.value}>
+                  {template.label}
+                </option>
+              ))}
+            </Select>
+          </label>
+
+          {selectedEntityLabel ? (
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-muted/30 p-3">
+              <div className="min-w-0">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                  Selected entity
+                </div>
+                <div className="mt-0.5 truncate text-sm font-medium text-foreground">
+                  {selectedEntityLabel}
+                </div>
+              </div>
+              <Button
+                onClick={handlePivotOnEntity}
+                disabled={isSearching}
+                size="sm"
+                variant="secondary"
+                className="shrink-0"
+              >
+                Pivot
+              </Button>
+            </div>
+          ) : null}
+
+          <label className="grid gap-1.5">
+            <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               Query
             </span>
             <Textarea
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               rows={5}
-              className="resize-y"
+              className="resize-y font-mono text-xs"
             />
           </label>
 
@@ -485,9 +690,15 @@ export function DatasourceSearchPanel({
             </label>
             <label className="grid gap-1.5">
               <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                Limit
+                Page size
               </span>
-              <Input value={limit} onChange={(event) => setLimit(event.target.value)} />
+              <Input
+                value={limit}
+                onChange={(event) => {
+                  setLimit(event.target.value)
+                  setCurrentOffset(0)
+                }}
+              />
             </label>
           </div>
 
@@ -495,6 +706,15 @@ export function DatasourceSearchPanel({
             <Button onClick={handleSearch} disabled={isSearching || !selectedDatasource}>
               {isSearching ? "Running..." : "Run Search"}
             </Button>
+            {isSearching ? (
+              <Button
+                onClick={() => abortControllerRef.current?.abort()}
+                variant="destructive"
+                size="default"
+              >
+                Cancel
+              </Button>
+            ) : null}
             <Button
               onClick={handleSaveResultSet}
               disabled={isSavingResultSet || !searchResult || searchResult.rows.length === 0}
@@ -510,6 +730,30 @@ export function DatasourceSearchPanel({
               {isAddingTimelineEntry ? "Adding..." : "Add to Timeline"}
             </Button>
           </div>
+
+          {totalPages !== null && totalPages > 1 ? (
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={handlePrevPage}
+                disabled={isSearching || currentPage === 0}
+                size="sm"
+                variant="outline"
+              >
+                Previous
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                Page {currentPage + 1} of {totalPages} ({totalCount} total)
+              </span>
+              <Button
+                onClick={handleNextPage}
+                disabled={isSearching || currentPage + 1 >= totalPages}
+                size="sm"
+                variant="outline"
+              >
+                Next
+              </Button>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -563,8 +807,8 @@ export function DatasourceSearchPanel({
           <CardContent className="grid gap-3 p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="space-y-2">
-                <div className="text-[15px] font-semibold text-foreground">{row.title}</div>
-                <div className="text-[13px] leading-6 text-foreground">{row.summary}</div>
+                <div className="break-all text-[15px] font-semibold text-foreground">{row.title}</div>
+                <div className="break-all text-[13px] leading-6 text-foreground">{row.summary}</div>
               </div>
               <Badge variant="outline">
                 {row.occurredAt ? `Occurred ${row.occurredAt}` : "No timestamp"}
@@ -573,8 +817,8 @@ export function DatasourceSearchPanel({
             {row.relatedEntities.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {row.relatedEntities.map((entity) => (
-                  <Badge key={`${row.id}-${entity.id}`} variant="secondary">
-                    {entity.kind}: {entity.label}
+                  <Badge key={`${row.id}-${entity.id}`} variant="secondary" title={`${entity.kind}: ${entity.label}`}>
+                    {entity.kind}: {truncateLabel(entity.label)}
                   </Badge>
                 ))}
               </div>
@@ -584,7 +828,7 @@ export function DatasourceSearchPanel({
               {row.sourceUrl ? (
                 <Button asChild size="sm" variant="secondary">
                   <Link href={row.sourceUrl} target="_blank" rel="noreferrer">
-                    Open Source
+                    Open in Splunk
                   </Link>
                 </Button>
               ) : null}
@@ -595,7 +839,20 @@ export function DatasourceSearchPanel({
               >
                 {promotingRowId === row.id ? "Promoting..." : "Promote Row"}
               </Button>
+              <Button
+                onClick={() => setExpandedRowId(expandedRowId === row.id ? null : row.id)}
+                size="sm"
+                variant="ghost"
+              >
+                {expandedRowId === row.id ? "Hide Raw" : "Show Raw"}
+              </Button>
             </div>
+
+            {expandedRowId === row.id ? (
+              <div className="rounded-lg border border-border/40 bg-muted/30 p-3">
+                <RawEventView raw={row.raw} />
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       ))}

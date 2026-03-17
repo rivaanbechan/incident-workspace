@@ -705,17 +705,27 @@ export function BoardShell({
                 getActionLabel={getActionLabel}
                 getEntityLabel={getEntityLabel}
               />
-            ) : (
-              <div className="h-full overflow-y-auto">
-                <div className="max-w-3xl mx-auto p-6">
-                  <DatasourceSearchPanel
-                    linkedCaseId={linkedCaseId}
-                    onAddTimelineEntry={addPreparedIncidentLogEntry}
-                    roomId={roomId}
-                  />
-                </div>
+            ) : null}
+
+            {/* Always mounted so in-flight searches survive tab switches. Absolutely positioned to fill the parent correctly when shown. */}
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                overflowY: "auto",
+                overflowX: "hidden",
+                display: activeMainTab === "search" ? "block" : "none",
+              }}
+            >
+              <div className="max-w-3xl mx-auto p-6">
+                <DatasourceSearchPanel
+                  linkedCaseId={linkedCaseId}
+                  onAddTimelineEntry={addPreparedIncidentLogEntry}
+                  roomId={roomId}
+                  selectedEntityLabel={selectedEntityLabel}
+                />
               </div>
-            )}
+            </div>
 
             <QuickCapturePalette
               draft={quickCaptureDraft}

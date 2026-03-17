@@ -55,6 +55,7 @@ export async function POST(request: Request, context: RouteContext) {
     earliestTime?: string
     latestTime?: string
     limit?: number
+    offset?: number
     query?: string
   }
 
@@ -82,12 +83,18 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "limit must be a positive number." }, { status: 400 })
   }
 
+  if (payload.offset !== undefined && (!Number.isFinite(payload.offset) || payload.offset < 0)) {
+    return NextResponse.json({ error: "offset must be a non-negative number." }, { status: 400 })
+  }
+
   try {
     const result = await adapter.executeSearch(datasource, {
       earliestTime: payload.earliestTime,
       latestTime: payload.latestTime,
       limit: payload.limit,
+      offset: payload.offset,
       query: payload.query,
+      signal: request.signal,
     })
 
     return NextResponse.json(result)

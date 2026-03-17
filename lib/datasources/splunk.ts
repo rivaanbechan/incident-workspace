@@ -10,8 +10,28 @@ import type {
   StoredDatasourceInstallation,
 } from "@/lib/datasources/types"
 
-type SplunkEventEnvelope = {
-  result?: Record<string, unknown>
+const ASYNC_JOB_TIMEOUT_MS = 120_000
+const POLL_INTERVAL_MS = 800
+
+type SplunkJobStatus = {
+  dispatchState: string
+  isDone: boolean
+  isFailed: boolean
+  resultCount: number
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException("The operation was aborted.", "AbortError"))
+      return
+    }
+    const timer = setTimeout(resolve, ms)
+    signal?.addEventListener("abort", () => {
+      clearTimeout(timer)
+      reject(new DOMException("The operation was aborted.", "AbortError"))
+    }, { once: true })
+  })
 }
 
 function normalizeBaseUrl(baseUrl: string) {
@@ -42,12 +62,18 @@ async function splunkFetch(
   url: string,
   options: RequestInit,
   skipTlsVerify: boolean,
+  signal?: AbortSignal,
 ): Promise<Response> {
   if (!skipTlsVerify) {
-    return fetch(url, options)
+    return fetch(url, { ...options, signal })
   }
 
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException("The operation was aborted.", "AbortError"))
+      return
+    }
+
     const parsed = new URL(url)
     const reqOptions: https.RequestOptions = {
       hostname: parsed.hostname,
@@ -62,6 +88,7 @@ async function splunkFetch(
       const chunks: Buffer[] = []
       res.on("data", (chunk: Buffer) => chunks.push(chunk))
       res.on("end", () => {
+        signal?.removeEventListener("abort", onAbort)
         const body = Buffer.concat(chunks).toString("utf8")
         resolve(
           new Response(body, {
@@ -72,7 +99,17 @@ async function splunkFetch(
       })
     })
 
-    req.on("error", reject)
+    req.on("error", (err) => {
+      signal?.removeEventListener("abort", onAbort)
+      reject(err)
+    })
+
+    const onAbort = () => {
+      req.destroy()
+      reject(new DOMException("The operation was aborted.", "AbortError"))
+    }
+
+    signal?.addEventListener("abort", onAbort, { once: true })
 
     if (options.body) {
       req.write(options.body)
@@ -109,7 +146,16 @@ function sanitizeRow(row: Record<string, unknown>) {
 }
 
 function summarizeRow(row: Record<string, unknown>) {
-  const fields = Object.entries(sanitizeRow(row)).slice(0, 4)
+  // Prefer _raw as the summary — it's the actual log line threat hunters care about
+  const rawValue = typeof row._raw === "string" ? row._raw.trim() : ""
+  if (rawValue.length > 0) {
+    return rawValue.length > 300 ? `${rawValue.slice(0, 300)}…` : rawValue
+  }
+
+  // Fall back to non-internal fields
+  const fields = Object.entries(sanitizeRow(row))
+    .filter(([key]) => !key.startsWith("_"))
+    .slice(0, 4)
 
   if (fields.length === 0) {
     return "Splunk returned a result row with no displayable fields."
@@ -157,16 +203,64 @@ function extractEntities(row: Record<string, unknown>) {
   const entities: EntityRef[] = []
   const seen = new Set<string>()
 
+  // Hosts
   pushEntity(entities, seen, "host", row.host)
+  pushEntity(entities, seen, "host", row.dvc)
+  pushEntity(entities, seen, "host", row.dest_host)
+
+  // Users / accounts
   pushEntity(entities, seen, "user", row.user ?? row.src_user)
+  pushEntity(entities, seen, "user", row.User)
+  pushEntity(entities, seen, "account", row.account_name ?? row.account)
   pushEntity(entities, seen, "identity", row.identity)
+
+  // IPs
   pushEntity(entities, seen, "ip", row.src ?? row.src_ip)
   pushEntity(entities, seen, "ip", row.dest ?? row.dest_ip)
+  pushEntity(entities, seen, "ip", row.src_translated_ip)
+  pushEntity(entities, seen, "ip", row.dest_translated_ip)
+
+  // Network — ports mapped to service kind
+  if (row.dest_port !== null && row.dest_port !== undefined && row.dest_port !== "") {
+    pushEntity(entities, seen, "service", row.dest_port, "Port: ")
+  }
+  if (row.src_port !== null && row.src_port !== undefined && row.src_port !== "") {
+    pushEntity(entities, seen, "service", row.src_port, "Port: ")
+  }
+
+  // Domains & URLs
   pushEntity(entities, seen, "domain", row.domain)
+  pushEntity(entities, seen, "domain", row.dns)
   pushEntity(entities, seen, "url", row.url)
+
+  // Files
   pushEntity(entities, seen, "file", row.file_name ?? row.file_path)
+  pushEntity(entities, seen, "file", row.FileName)
+
+  // Hashes — critical for malware analysis
+  pushEntity(entities, seen, "hash", row.md5 ?? row.MD5, "MD5: ")
+  pushEntity(entities, seen, "hash", row.sha256 ?? row.SHA256, "SHA256: ")
+  pushEntity(entities, seen, "hash", row.sha1 ?? row.SHA1, "SHA1: ")
+  pushEntity(entities, seen, "hash", row.file_hash)
+  pushEntity(entities, seen, "hash", row.hash)
+
+  // Processes — includes command lines and parent processes
   pushEntity(entities, seen, "process", row.process_name ?? row.process)
+  pushEntity(entities, seen, "process", row.Process)
+  pushEntity(entities, seen, "process", row.cmd_line ?? row.command_line ?? row.CommandLine, "Cmd: ")
+  pushEntity(entities, seen, "process", row.parent_process_name ?? row.parent_process, "Parent: ")
+
+  // Registry — Windows threat hunting
+  pushEntity(entities, seen, "registry", row.registry_path ?? row.registry_key ?? row.RegistryPath)
+  pushEntity(entities, seen, "registry", row.registry_value_name, "Value: ")
+
+  // Cloud resources
+  pushEntity(entities, seen, "cloud-resource", row.resource_id ?? row.cloud_resource)
+
+  // Alerts / threat intel — includes MITRE ATT&CK
   pushEntity(entities, seen, "alert", row.rule_name ?? row.signature, "Alert: ")
+  pushEntity(entities, seen, "alert", row.mitre_attack_id ?? row.mitre_technique_id ?? row.technique_id, "ATT&CK: ")
+  pushEntity(entities, seen, "alert", row.tactic, "Tactic: ")
 
   return entities
 }
@@ -192,6 +286,36 @@ function buildSourceUrl(baseUrl: string, query: string) {
   return url.toString()
 }
 
+// Builds a time-scoped URL pointing at the ±60s window around the event's _time.
+// Falls back to the query-level URL when no timestamp is available.
+function buildEventSourceUrl(baseUrl: string, query: string, row: Record<string, unknown>) {
+  const timeValue = row._time
+
+  if (timeValue !== null && timeValue !== undefined) {
+    const timeStr = stringifyValue(timeValue).trim()
+    let epochSeconds: number | null = null
+
+    if (typeof timeValue === "number") {
+      epochSeconds = timeValue
+    } else if (timeStr) {
+      const parsed = Date.parse(timeStr)
+      if (!isNaN(parsed)) {
+        epochSeconds = parsed / 1000
+      }
+    }
+
+    if (epochSeconds !== null) {
+      const url = new URL("/en-US/app/search/search", normalizeBaseUrl(baseUrl))
+      url.searchParams.set("q", query)
+      url.searchParams.set("earliest", String(Math.floor(epochSeconds - 60)))
+      url.searchParams.set("latest", String(Math.ceil(epochSeconds + 60)))
+      return url.toString()
+    }
+  }
+
+  return buildSourceUrl(baseUrl, query)
+}
+
 function mapSearchRows(
   rows: Record<string, unknown>[],
   baseUrl: string,
@@ -211,28 +335,11 @@ function mapSearchRows(
       occurredAt: pickOccurredAt(resultRow),
       raw: resultRow,
       relatedEntities: extractEntities(resultRow),
-      sourceUrl: buildSourceUrl(baseUrl, query),
+      sourceUrl: buildEventSourceUrl(baseUrl, query, resultRow),
       summary: summarizeRow(resultRow),
       title: deriveTitle(resultRow),
     }
   })
-}
-
-function parseSplunkExportPayload(payload: string) {
-  return payload
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .map((line) => {
-      try {
-        return JSON.parse(line) as SplunkEventEnvelope
-      } catch {
-        return null
-      }
-    })
-    .filter((item): item is SplunkEventEnvelope => item !== null)
-    .map((item) => item.result)
-    .filter((item): item is Record<string, unknown> => Boolean(item))
 }
 
 function toSearchString(query: string) {
@@ -243,27 +350,6 @@ function toSearchString(query: string) {
   }
 
   return `search ${trimmed}`
-}
-
-function buildSearchBody(request: DatasourceSearchRequest) {
-  const params = new URLSearchParams()
-  params.set("search", toSearchString(request.query))
-  params.set("output_mode", "json")
-  params.set("preview", "0")
-
-  if (request.earliestTime?.trim()) {
-    params.set("earliest_time", request.earliestTime.trim())
-  }
-
-  if (request.latestTime?.trim()) {
-    params.set("latest_time", request.latestTime.trim())
-  }
-
-  if (request.limit && Number.isFinite(request.limit) && request.limit > 0) {
-    params.set("max_count", String(request.limit))
-  }
-
-  return params
 }
 
 async function readResponseError(response: Response) {
@@ -280,6 +366,158 @@ async function readResponseError(response: Response) {
 function assertSplunkDatasource(datasource: StoredDatasourceInstallation) {
   if (datasource.vendor !== "splunk") {
     throw new Error(`Datasource ${datasource.id} is not a Splunk datasource.`)
+  }
+}
+
+// --- Async job API ---
+
+function buildJobCreationBody(request: DatasourceSearchRequest): URLSearchParams {
+  const params = new URLSearchParams()
+  params.set("search", toSearchString(request.query))
+
+  if (request.earliestTime?.trim()) {
+    params.set("earliest_time", request.earliestTime.trim())
+  }
+
+  if (request.latestTime?.trim()) {
+    params.set("latest_time", request.latestTime.trim())
+  }
+
+  return params
+}
+
+async function createSplunkJob(
+  baseUrl: string,
+  headers: Record<string, string>,
+  request: DatasourceSearchRequest,
+  skipTlsVerify: boolean,
+  signal?: AbortSignal,
+): Promise<string> {
+  const response = await splunkFetch(
+    `${baseUrl}/services/search/jobs?output_mode=json`,
+    {
+      body: buildJobCreationBody(request).toString(),
+      cache: "no-store",
+      headers: { ...headers, "Content-Type": "application/x-www-form-urlencoded" },
+      method: "POST",
+    },
+    skipTlsVerify,
+    signal,
+  )
+
+  if (!response.ok) {
+    throw new Error(await readResponseError(response))
+  }
+
+  const json = (await response.json()) as { sid?: string }
+
+  if (!json.sid) {
+    throw new Error("Splunk did not return a search job ID.")
+  }
+
+  return json.sid
+}
+
+function parseSplunkJobStatus(json: unknown): SplunkJobStatus {
+  const content =
+    (json as { entry?: Array<{ content?: Record<string, unknown> }> })?.entry?.[0]?.content ?? {}
+
+  const dispatchState = typeof content.dispatchState === "string" ? content.dispatchState : ""
+  const isDone = content.isDone === true || content.isDone === "1" || content.isDone === 1
+
+  return {
+    dispatchState,
+    isDone,
+    isFailed: dispatchState === "FAILED",
+    resultCount: typeof content.resultCount === "number" ? content.resultCount : 0,
+  }
+}
+
+async function pollSplunkJobUntilDone(
+  baseUrl: string,
+  headers: Record<string, string>,
+  sid: string,
+  skipTlsVerify: boolean,
+  signal?: AbortSignal,
+): Promise<number> {
+  const deadline = Date.now() + ASYNC_JOB_TIMEOUT_MS
+
+  while (Date.now() < deadline) {
+    signal?.throwIfAborted()
+
+    const response = await splunkFetch(
+      `${baseUrl}/services/search/jobs/${encodeURIComponent(sid)}?output_mode=json`,
+      { cache: "no-store", headers, method: "GET" },
+      skipTlsVerify,
+      signal,
+    )
+
+    if (!response.ok) {
+      throw new Error(await readResponseError(response))
+    }
+
+    const json = await response.json()
+    const status = parseSplunkJobStatus(json)
+
+    if (status.isFailed) {
+      throw new Error(`Splunk search job failed (state: ${status.dispatchState}).`)
+    }
+
+    if (status.isDone) {
+      return status.resultCount
+    }
+
+    await sleep(POLL_INTERVAL_MS, signal)
+  }
+
+  throw new Error(`Splunk search job timed out after ${ASYNC_JOB_TIMEOUT_MS / 1000}s.`)
+}
+
+async function fetchSplunkJobResults(
+  baseUrl: string,
+  headers: Record<string, string>,
+  sid: string,
+  limit: number,
+  offset: number,
+  skipTlsVerify: boolean,
+  signal?: AbortSignal,
+): Promise<Record<string, unknown>[]> {
+  const params = new URLSearchParams()
+  params.set("output_mode", "json")
+  params.set("count", String(limit))
+  params.set("offset", String(offset))
+
+  const response = await splunkFetch(
+    `${baseUrl}/services/search/jobs/${encodeURIComponent(sid)}/results?${params.toString()}`,
+    { cache: "no-store", headers, method: "GET" },
+    skipTlsVerify,
+    signal,
+  )
+
+  if (!response.ok) {
+    throw new Error(await readResponseError(response))
+  }
+
+  const json = (await response.json()) as { results?: unknown[] }
+  const results = Array.isArray(json.results) ? json.results : []
+
+  return results.filter((r): r is Record<string, unknown> => r !== null && typeof r === "object")
+}
+
+async function deleteSplunkJob(
+  baseUrl: string,
+  headers: Record<string, string>,
+  sid: string,
+  skipTlsVerify: boolean,
+): Promise<void> {
+  try {
+    await splunkFetch(
+      `${baseUrl}/services/search/jobs/${encodeURIComponent(sid)}`,
+      { headers, method: "DELETE" },
+      skipTlsVerify,
+    )
+  } catch {
+    // Best-effort cleanup — do not throw
   }
 }
 
@@ -321,31 +559,26 @@ async function runSplunkSearch(
   const startedAt = Date.now()
   const baseUrl = normalizeBaseUrl(datasource.baseUrl)
   const skipTlsVerify = resolveSkipTlsVerify(datasource.config)
-  const response = await splunkFetch(
-    `${baseUrl}/services/search/jobs/export`,
-    {
-      body: buildSearchBody(request).toString(),
-      cache: "no-store",
-      headers: {
-        ...buildAuthHeaders(resolveToken(datasource.config)),
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      method: "POST",
-    },
-    skipTlsVerify,
-  )
+  const headers = buildAuthHeaders(resolveToken(datasource.config))
+  const limit = request.limit && request.limit > 0 ? request.limit : 25
+  const offset = request.offset && request.offset > 0 ? request.offset : 0
 
-  if (!response.ok) {
-    throw new Error(await readResponseError(response))
-  }
+  const signal = request.signal
+  const sid = await createSplunkJob(baseUrl, headers, request, skipTlsVerify, signal)
 
-  const payload = await response.text()
-  const rows = parseSplunkExportPayload(payload)
+  try {
+    const totalCount = await pollSplunkJobUntilDone(baseUrl, headers, sid, skipTlsVerify, signal)
+    const rows = await fetchSplunkJobResults(baseUrl, headers, sid, limit, offset, skipTlsVerify, signal)
 
-  return {
-    executionTimeMs: Date.now() - startedAt,
-    rowCount: rows.length,
-    rows: mapSearchRows(rows, baseUrl, request.query),
+    return {
+      executionTimeMs: Date.now() - startedAt,
+      rowCount: rows.length,
+      totalCount,
+      rows: mapSearchRows(rows, baseUrl, request.query),
+    }
+  } finally {
+    // Always delete the Splunk job — including on abort/cancel so we don't leave orphaned jobs
+    void deleteSplunkJob(baseUrl, headers, sid, skipTlsVerify)
   }
 }
 

@@ -42,7 +42,9 @@ export type DatasourceSearchRequest = {
   earliestTime?: string
   latestTime?: string
   limit?: number
+  offset?: number
   query: string
+  signal?: AbortSignal
 }
 
 export type DatasourceSearchRow = {
@@ -58,6 +60,7 @@ export type DatasourceSearchRow = {
 export type DatasourceSearchResult = {
   executionTimeMs: number
   rowCount: number
+  totalCount: number
   rows: DatasourceSearchRow[]
 }
 
