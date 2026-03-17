@@ -35,6 +35,15 @@ export function useEntityManager({
     entitiesRef.current = entities
   }, [entities])
 
+  const placeEntity = useCallback(
+    (entity: BoardEntity) => {
+      const entityMap = entityMapRef.current
+      if (!entityMap) return
+      entityMap.set(entity.id, serializeEntity(entity))
+    },
+    [entityMapRef],
+  )
+
   const createEntityAtViewportCenter = useCallback(
     (factory: (point: BoardPoint, zIndex: number) => BoardEntity) => {
       const stage = stageRef.current
@@ -232,6 +241,7 @@ export function useEntityManager({
     createEntitiesAtViewportCenter,
     createEntityAtViewportCenter,
     deleteEntity,
+    placeEntity,
     entities,
     entitiesRef,
     selectedEntityId,

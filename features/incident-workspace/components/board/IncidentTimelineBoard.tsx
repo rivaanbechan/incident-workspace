@@ -1,5 +1,7 @@
 "use client"
 
+import ReactMarkdown from "react-markdown"
+import remarkBreaks from "remark-breaks"
 import { EmptyState } from "@/components/shell/EmptyState"
 import { TimelineEntry } from "@/components/shell/TimelineEntry"
 import { Badge } from "@/components/ui/badge"
@@ -102,6 +104,43 @@ function formatTimelineDay(value: number) {
     month: "long",
     weekday: "short",
   }).format(new Date(value))
+}
+
+const BODY_CLASS =
+  "text-sm leading-7 text-foreground/85 [&_a]:text-primary [&_ol]:my-1 [&_ol]:pl-5 [&_p]:my-1 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-muted [&_pre]:p-2 [&_ul]:my-1 [&_ul]:pl-5"
+
+function ExpandableFeedBody({ body }: { body: string }) {
+  const [expanded, setExpanded] = useState(false)
+  const hasMultipleLines = body.includes("\n") || body.length > 160
+
+  if (!hasMultipleLines) {
+    return (
+      <div className={BODY_CLASS}>
+        <ReactMarkdown remarkPlugins={[remarkBreaks]}>{body}</ReactMarkdown>
+      </div>
+    )
+  }
+
+  const preview = body.split("\n")[0]?.trim() ?? body
+
+  return (
+    <div className="grid gap-1">
+      {expanded ? (
+        <div className={BODY_CLASS}>
+          <ReactMarkdown remarkPlugins={[remarkBreaks]}>{body}</ReactMarkdown>
+        </div>
+      ) : (
+        <div className="truncate text-sm leading-7 text-foreground/85">{preview}</div>
+      )}
+      <button
+        className="w-fit text-xs font-semibold text-muted-foreground hover:text-foreground"
+        onClick={() => setExpanded((prev) => !prev)}
+        type="button"
+      >
+        {expanded ? "Show less" : "Show more"}
+      </button>
+    </div>
+  )
 }
 
 export function IncidentTimelineBoard({
@@ -464,9 +503,7 @@ export function IncidentTimelineBoard({
                           </div>
                         </div>
 
-                        <div className="whitespace-pre-wrap text-sm leading-7 text-foreground/85">
-                          {entry.body}
-                        </div>
+                        <ExpandableFeedBody body={entry.body} />
 
                         {entry.linkedEntityIds.length > 0 || linkedActions.length > 0 ? (
                           <div className="grid gap-2">

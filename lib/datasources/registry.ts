@@ -1,7 +1,15 @@
 import { splunkAdapter } from "@/lib/datasources/splunk"
+import { ollamaAdapter } from "@/lib/datasources/ollama"
+import { virusTotalAdapter } from "@/lib/datasources/virustotal"
+import { mockVirusTotalAdapter } from "@/lib/datasources/virustotal-mock"
 import type { DatasourceAdapter, DatasourceDefinition } from "@/lib/datasources/types"
 
-const datasourceAdapters: DatasourceAdapter[] = [splunkAdapter]
+const datasourceAdapters: DatasourceAdapter[] = [
+  splunkAdapter,
+  ollamaAdapter,
+  virusTotalAdapter,
+  mockVirusTotalAdapter,
+]
 
 export const datasourceDefinitions: DatasourceDefinition[] = datasourceAdapters.map(
   (adapter) => adapter.definition,

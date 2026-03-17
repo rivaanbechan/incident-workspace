@@ -47,11 +47,9 @@ export function useConnectionManager({ connectionsRef }: UseConnectionManagerArg
         return
       }
 
-      connectionsList.push([
-        serializeBoardConnection(
-          createRoomConnection(sourceEntityId, targetEntityId, type, customLabel),
-        ),
-      ])
+      const connection = createRoomConnection(sourceEntityId, targetEntityId, type, customLabel)
+      connectionsList.push([serializeBoardConnection(connection)])
+      return connection
     },
     [connectionsRef],
   )

@@ -14,6 +14,7 @@ import type {
   NoteEntity,
   PresenceState,
   PresenceUser,
+  ReasoningEntity,
   ScreenTileEntity,
   StatusMarkerEntity,
 } from "@/features/incident-workspace/lib/board/types"
@@ -330,6 +331,7 @@ export function parseBoardConnection(value: unknown): BoardConnection | null {
       type:
         connection.type === "blocks" ||
         connection.type === "custom" ||
+        connection.type === "derived_from" ||
         connection.type === "mitigates" ||
         connection.type === "relates_to"
           ? connection.type
@@ -593,4 +595,33 @@ export function nextBackgroundZIndex(entities: BoardEntity[]) {
 
 export function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max)
+}
+
+export function createReasoningEntity(
+  agentId: string,
+  agentName: string,
+  invokingUserId: string,
+  focusEntityId: string,
+  position: BoardPoint,
+  zIndex: number,
+): ReasoningEntity {
+  return {
+    agentId,
+    agentName,
+    createdAt: Date.now(),
+    focusEntityId,
+    height: DEFAULT_MAP_CARD_HEIGHT,
+    id: createId("reasoning"),
+    invokingUserId,
+    narrative: "",
+    status: "running",
+    title: agentName,
+    toolCallSummary: "",
+    type: "reasoning",
+    updatedAt: Date.now(),
+    width: DEFAULT_MAP_CARD_WIDTH,
+    x: position.x,
+    y: position.y,
+    zIndex,
+  }
 }

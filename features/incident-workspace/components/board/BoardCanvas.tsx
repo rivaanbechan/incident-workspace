@@ -2,9 +2,12 @@
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import type { BoardEntity } from "@/features/incident-workspace/lib/board/types"
+import type { BoardEntity, GhostEntity } from "@/features/incident-workspace/lib/board/types"
+import { boardToScreen } from "@/features/incident-workspace/components/board/boardCore"
 import { useBoardEntities } from "@/features/incident-workspace/components/board/BoardEntitiesContext"
 import { useBoardUI } from "@/features/incident-workspace/components/board/BoardUIContext"
+import { AskAgentButton } from "@/features/agents/components/AskAgentButton"
+import { GhostEntityCard } from "@/features/agents/components/GhostEntityCard"
 import { BoardControlsPanel } from "@/features/incident-workspace/components/board/BoardControlsPanel"
 import { ConnectionLayer } from "@/features/incident-workspace/components/board/ConnectionLayer"
 import { CursorPresenceLayer } from "@/features/incident-workspace/components/board/CursorPresenceLayer"
@@ -22,9 +25,15 @@ type BoardCanvasProps = {
   activeScreenShares: ActiveScreenShare[]
   activeShareView: LiveShareView
   fitCanvasToScreen: () => void
+  ghostEntities: GhostEntity[]
   hasActiveScreenShares: boolean
+  isAgentRunning: boolean
+  onAcceptGhost: (ghost: GhostEntity) => void
   onBackgroundPointerDown: (event: React.PointerEvent<HTMLDivElement>) => void
+  onDismissGhost: (ghost: GhostEntity) => void
+  onInvokeAgent: ((agentId: string, entity: BoardEntity) => void) | undefined
   onWheel: (event: React.WheelEvent<HTMLDivElement>) => void
+  orgId: string
   renderEntity: (entity: BoardEntity) => ReactNode
   roomId: string
   setActiveScreenShares: (shares: ActiveScreenShare[]) => void
@@ -37,9 +46,15 @@ export function BoardCanvas({
   activeScreenShares,
   activeShareView,
   fitCanvasToScreen,
+  ghostEntities,
   hasActiveScreenShares,
+  isAgentRunning,
+  onAcceptGhost,
   onBackgroundPointerDown,
+  onDismissGhost,
+  onInvokeAgent,
   onWheel,
+  orgId,
   renderEntity,
   roomId,
   setActiveScreenShares,
@@ -186,8 +201,46 @@ export function BoardCanvas({
         {/* Overlays */}
         <CursorPresenceLayer stageRect={stageRect} speakingParticipantIds={speakingParticipantIds} />
         <EntityCreationToolbar />
-        <EntitySelectionPanel />
+        <EntitySelectionPanel
+          renderAgentActions={
+            onInvokeAgent
+              ? (entity) => (
+                  <AskAgentButton
+                    caseId=""
+                    focusEntity={entity}
+                    isAgentRunning={isAgentRunning}
+                    onInvoke={onInvokeAgent}
+                    orgId={orgId}
+                  />
+                )
+              : undefined
+          }
+        />
         <PendingMapPromptCard />
+        {ghostEntities.length > 0 && stageRect ? (
+          <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 50 }}>
+            {ghostEntities.map((ghost) => {
+              const pos = boardToScreen({ x: ghost.x, y: ghost.y }, stageRect, camera)
+              return (
+                <div
+                  key={`${ghost.reasoningEntityId}-${ghost.label}`}
+                  style={{
+                    position: "absolute",
+                    left: pos.x,
+                    top: pos.y,
+                    pointerEvents: "auto",
+                  }}
+                >
+                  <GhostEntityCard
+                    ghost={ghost}
+                    onAccept={onAcceptGhost}
+                    onDismiss={onDismissGhost}
+                  />
+                </div>
+              )
+            })}
+          </div>
+        ) : null}
         <BoardControlsPanel
           activeScreenShares={activeScreenShares}
           activeShareView={activeShareView}

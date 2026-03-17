@@ -15,6 +15,7 @@ import type {
   NoteEntity,
 } from "@/features/incident-workspace/lib/board/types"
 import type { CSSProperties, PointerEvent as ReactPointerEvent, RefObject } from "react"
+import { ReasoningEntityCard } from "@/features/agents/components/ReasoningEntityCard"
 import { IncidentEntityCard } from "./IncidentEntityCard"
 import { NoteEntityCard } from "./NoteEntityCard"
 import { ScreenTileEntityCard } from "./ScreenTileEntityCard"
@@ -281,6 +282,16 @@ export function BoardEntityRenderer({
       <StatusMarkerEntityCard
         entity={entity}
         handleEntityDoubleClick={handleEntityDoubleClick}
+        handleEntityDragStart={handleEntityDragStart}
+        shellStyle={shellStyle}
+      />
+    )
+  }
+
+  if (entity.type === "reasoning") {
+    return (
+      <ReasoningEntityCard
+        entity={entity}
         handleEntityDragStart={handleEntityDragStart}
         shellStyle={shellStyle}
       />

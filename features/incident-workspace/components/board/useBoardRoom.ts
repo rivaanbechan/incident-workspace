@@ -15,6 +15,7 @@ export function useBoardRoom(roomId: string, initialUser: PresenceUser) {
   const user = initialUser
 
   // All Yjs refs are created here in the coordinator and shared with domain hooks
+  const docRef = useRef<Y.Doc | null>(null)
   const entityMapRef = useRef<Y.Map<string> | null>(null)
   const connectionsRef = useRef<Y.Array<string> | null>(null)
   const incidentLogRef = useRef<Y.Array<string> | null>(null)
@@ -65,6 +66,7 @@ export function useBoardRoom(roomId: string, initialUser: PresenceUser) {
       },
     },
     connectionsRef,
+    docRef,
     entityMapRef,
     incidentActionsRef,
     incidentLogRef,
@@ -104,9 +106,11 @@ export function useBoardRoom(roomId: string, initialUser: PresenceUser) {
     createConnection: connectionManager.createConnection,
     createEntitiesAtViewportCenter: entityManager.createEntitiesAtViewportCenter,
     createEntityAtViewportCenter: entityManager.createEntityAtViewportCenter,
+    placeEntity: entityManager.placeEntity,
     deleteActionItem: actionManager.deleteActionItem,
     deleteConnection: connectionManager.deleteConnection,
     deleteEntity: entityManager.deleteEntity,
+    docRef,
     deleteIncidentLogEntry: timelineManager.deleteIncidentLogEntry,
     entities: entityManager.entities,
     entityMapRef,

@@ -254,7 +254,7 @@ export function LiveSessionPanel({
             serverUrl={session.serverUrl}
             token={session.token}
             video={false}
-            audio={true}
+            audio={false}
           >
             <ConnectedInlineScreenShareButton onError={setError} />
             <LiveSessionViewer

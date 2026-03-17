@@ -1,9 +1,10 @@
 export type EntityType =
+  | "incidentCard"
   | "investigationZone"
   | "note"
-  | "incidentCard"
-  | "statusMarker"
+  | "reasoning"
   | "screenTile"
+  | "statusMarker"
 
 export type Severity = "low" | "medium" | "high" | "critical"
 export type IncidentStatus = "open" | "monitoring" | "mitigated"
@@ -23,6 +24,7 @@ export type IncidentActionStatus = "open" | "in_progress" | "blocked" | "done"
 export type BoardConnectionType =
   | "blocks"
   | "custom"
+  | "derived_from"
   | "mitigates"
   | "relates_to"
   | "supports"
@@ -154,9 +156,40 @@ export type ScreenTileEntity = BaseEntity & {
   type: "screenTile"
 }
 
+export type ReasoningEntityStatus = "cancelled" | "complete" | "error" | "running"
+
+export type ReasoningEntity = BaseEntity & {
+  agentId: string
+  agentName: string
+  focusEntityId: string
+  invokingUserId: string
+  /** Display label — set to agent name for compatibility with entity label helpers. */
+  title: string
+  /**
+   * Streaming narrative text. In the Yjs doc this is a Y.Text; when serialised
+   * to JSON (for storage or read-back) it becomes a plain string via .toString().
+   */
+  narrative: string
+  status: ReasoningEntityStatus
+  toolCallSummary: string
+  type: "reasoning"
+}
+
+export type GhostEntity = {
+  invokingUserId: string
+  label: string
+  proposedKind: EntityType | "ip" | "domain" | "hash" | "host" | "user"
+  reasoningEntityId: string
+  summary: string
+  /** Board-space position, computed relative to the reasoning entity at spawn time. */
+  x: number
+  y: number
+}
+
 export type BoardEntity =
   | InvestigationZoneEntity
   | NoteEntity
   | IncidentCardEntity
   | StatusMarkerEntity
   | ScreenTileEntity
+  | ReasoningEntity

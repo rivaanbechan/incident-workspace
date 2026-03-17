@@ -352,14 +352,25 @@ async function setupConnection(conn, request) {
     return
   }
 
+  // Buffer messages that arrive during the async DB load so SYNC_STEP1 isn't dropped.
+  const messageQueue = []
+  const bufferMessage = (msg) => messageQueue.push(msg)
+  conn.on("message", bufferMessage)
+
   const docState = await getDoc(roomName)
   let pongReceived = true
 
   docState.conns.set(conn, new Set())
 
+  conn.off("message", bufferMessage)
   conn.on("message", (message) => {
     onMessage(conn, docState, message)
   })
+
+  // Replay any messages received before the handler was ready.
+  for (const msg of messageQueue) {
+    onMessage(conn, docState, msg)
+  }
 
   const pingInterval = setInterval(() => {
     if (!pongReceived) {

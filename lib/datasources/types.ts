@@ -2,6 +2,8 @@ import type { EntityRef } from "@/lib/contracts/entities"
 
 export type DatasourceVendorId = string
 
+export type DatasourceCategory = "enrichment" | "llm" | "search"
+
 export type DatasourceConfigPayload = Record<string, unknown>
 
 export type DatasourceCapabilities = {
@@ -11,9 +13,45 @@ export type DatasourceCapabilities = {
 
 export type DatasourceDefinition = {
   capabilities: DatasourceCapabilities
+  category?: DatasourceCategory
   description: string
   id: string
   title: string
+  vendor: DatasourceVendorId
+}
+
+export type LLMDatasourceConfig = {
+  defaultModel: string
+  maxConcurrent: number
+  supportsToolCalling: boolean
+}
+
+export type EnrichmentDatasourceConfig = {
+  apiKey: string
+}
+
+export type LLMDatasource = {
+  baseUrl: string
+  category: "llm"
+  createdAt: string
+  defaultModel: string
+  enabled: boolean
+  id: string
+  maxConcurrent: number
+  supportsToolCalling: boolean
+  title: string
+  updatedAt: string
+  vendor: DatasourceVendorId
+}
+
+export type EnrichmentDatasource = {
+  apiKey: string
+  category: "enrichment"
+  createdAt: string
+  enabled: boolean
+  id: string
+  title: string
+  updatedAt: string
   vendor: DatasourceVendorId
 }
 

@@ -1,5 +1,7 @@
 "use client"
 
+import ReactMarkdown from "react-markdown"
+import remarkBreaks from "remark-breaks"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
@@ -48,8 +50,10 @@ export function IncidentLogPanel({
                   {formatLogTimestamp(entry.createdAt)}
                 </span>
               </div>
-              <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-foreground">
-                {entry.body}
+              <div className="mt-2 text-sm leading-6 text-foreground [&_ol]:my-1 [&_ol]:pl-5 [&_p]:my-1 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-muted [&_pre]:p-2 [&_ul]:my-1 [&_ul]:pl-5">
+                <ReactMarkdown remarkPlugins={[remarkBreaks]}>
+                  {entry.body}
+                </ReactMarkdown>
               </div>
             </article>
           ))}

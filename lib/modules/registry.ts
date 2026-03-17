@@ -2,6 +2,7 @@ import { collabHuntGraphModule } from "@/features/collab-hunt-graph"
 import { casesModule } from "@/features/cases"
 import { incidentWorkspaceModule } from "@/features/incident-workspace"
 import { integrationsModule } from "@/features/integrations"
+import { agentsModule } from "@/features/agents"
 import type { AppModuleManifest } from "@/lib/modules/types"
 
 export const appModules: AppModuleManifest[] = [
@@ -9,6 +10,7 @@ export const appModules: AppModuleManifest[] = [
   incidentWorkspaceModule,
   collabHuntGraphModule,
   integrationsModule,
+  agentsModule,
 ]
 
 export function getModuleById(moduleId: string) {

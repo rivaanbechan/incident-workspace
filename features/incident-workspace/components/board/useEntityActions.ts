@@ -81,6 +81,14 @@ export function useEntityActions({
       }
     }
 
+    if (entity.type === "reasoning") {
+      const narrative = entity.narrative?.trim() || "Agent analysis complete."
+      return {
+        draft: `**${entity.agentName}** — ${entity.title}\n\n${narrative}`,
+        type: "update" as const,
+      }
+    }
+
     return {
       draft: `Board context: ${getEntityLabel(entity.id)}`,
       type: "update" as const,

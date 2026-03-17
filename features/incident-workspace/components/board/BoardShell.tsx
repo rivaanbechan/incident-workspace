@@ -21,6 +21,8 @@ import { useScreenShares } from "@/features/incident-workspace/components/board/
 import { useEntityCreation } from "@/features/incident-workspace/components/board/useEntityCreation"
 import { useCasePromotion } from "@/features/incident-workspace/components/board/useCasePromotion"
 import { useNotifications } from "@/features/incident-workspace/components/board/useNotifications"
+import { useAgentInvocation } from "@/features/agents/lib/useAgentInvocation"
+import { AskAgentButton } from "@/features/agents/components/AskAgentButton"
 import { useDragAndResize } from "@/features/incident-workspace/components/board/useDragAndResize"
 import { useConnectionFlow } from "@/features/incident-workspace/components/board/useConnectionFlow"
 import { useKeyboardShortcuts } from "@/features/incident-workspace/components/board/useKeyboardShortcuts"
@@ -90,6 +92,7 @@ export function BoardShell({
   > = {
     blocks: { color: "#dc2626", label: "Blocks" },
     custom: { color: "#7c3aed", label: "Custom" },
+    derived_from: { color: "#8b5cf6", label: "Derived from" },
     mitigates: { color: "#16a34a", label: "Mitigates" },
     relates_to: { color: "hsl(var(--muted-foreground))", label: "Relates to" },
     supports: { color: "#2563eb", label: "Supports" },
@@ -119,6 +122,7 @@ export function BoardShell({
     deleteEntity,
     deleteConnection,
     deleteIncidentLogEntry,
+    docRef,
     entities,
     entityMapRef,
     incidentActions,
@@ -128,6 +132,7 @@ export function BoardShell({
     incidentSummary,
     isSynced,
     logActionStatusChange,
+    placeEntity,
     presence,
     providerRef,
     refreshStageRect,
@@ -251,6 +256,23 @@ export function BoardShell({
   } = useCasePromotion({ entities, linkedCaseId, roomId, selectedEntity })
 
   useNotifications({ incidentActions, incidentLog, isSynced, user })
+
+  const {
+    accept: acceptGhost,
+    cancel: cancelAgent,
+    dismiss: dismissGhost,
+    ghostEntities,
+    invoke: invokeAgent,
+    status: agentStatus,
+  } = useAgentInvocation({
+    caseId: linkedCaseId ?? "",
+    createEntity: placeEntity,
+    createConnection,
+    updateConnection,
+    entities,
+    userId: currentUser.id,
+    yDoc: docRef,
+  })
 
   const selectSingleEntity = useCallback((entityId: string) => {
     setSelectedEntityId(entityId)
@@ -646,9 +668,15 @@ export function BoardShell({
                 activeScreenShares={activeScreenShares}
                 activeShareView={activeShareView}
                 fitCanvasToScreen={fitCanvasToScreen}
+                ghostEntities={ghostEntities}
                 hasActiveScreenShares={hasActiveScreenShares}
+                isAgentRunning={agentStatus === "running"}
+                onAcceptGhost={acceptGhost}
                 onBackgroundPointerDown={handleBackgroundPointerDown}
+                onDismissGhost={dismissGhost}
+                onInvokeAgent={invokeAgent}
                 onWheel={handleWheel}
+                orgId={currentUser.orgId}
                 renderEntity={renderEntity}
                 roomId={roomId}
                 setActiveScreenShares={setActiveScreenShares}

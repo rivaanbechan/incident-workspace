@@ -11,11 +11,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import type { BoardConnectionType } from "@/features/incident-workspace/lib/board/types"
+import type { BoardConnectionType, BoardEntity, ReasoningEntity } from "@/features/incident-workspace/lib/board/types"
 import { MAP_KIND_LABELS } from "@/features/incident-workspace/components/board/boardShellShared"
 import { useBoardEntities } from "@/features/incident-workspace/components/board/BoardEntitiesContext"
 import { useBoardSelection } from "@/features/incident-workspace/components/board/BoardSelectionContext"
 import { useBoardUI } from "@/features/incident-workspace/components/board/BoardUIContext"
+import type { ReactNode } from "react"
 
 /**
  * EntitySelectionPanel — top-left overlay containing:
@@ -25,7 +26,11 @@ import { useBoardUI } from "@/features/incident-workspace/components/board/Board
  *
  * Mounted as an absolutely-positioned overlay inside the board canvas stage.
  */
-export function EntitySelectionPanel() {
+type Props = {
+  renderAgentActions?: (entity: BoardEntity) => ReactNode
+}
+
+export function EntitySelectionPanel({ renderAgentActions }: Props = {}) {
   const {
     connectionDraftCustomLabel,
     connectionDraftType,
@@ -133,6 +138,7 @@ export function EntitySelectionPanel() {
           </CardHeader>
           <CardContent className="grid gap-3 p-3 pt-0">
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {renderAgentActions ? renderAgentActions(selectedEntity) : null}
               {(selectedEntityMapKind === "scope" ||
                 selectedEntityMapKind === "handoff" ||
                 selectedEntityMapKind === "evidence") ? (
@@ -226,6 +232,63 @@ export function EntitySelectionPanel() {
                   </Button>
                 ) : null}
               </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* Reasoning entity action panel */}
+      {selectedEntity?.type === "reasoning" ? (
+        <Card
+          style={{
+            boxShadow: "0 12px 28px rgba(15, 23, 42, 0.08)",
+            pointerEvents: "auto",
+            maxWidth: 320,
+          }}
+          className="border-border/40 bg-card/95 backdrop-blur"
+        >
+          <CardHeader className="space-y-2 p-3">
+            <Badge className="w-fit" variant="outline">Agent report</Badge>
+            <CardTitle className="text-sm">
+              {(selectedEntity as ReasoningEntity).agentName}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-2 p-3 pt-0">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={() => onLogEntityToFeed(selectedEntity.id)}
+                size="sm"
+                type="button"
+              >
+                Log to Feed
+              </Button>
+              <Button
+                onClick={() => onCreateActionForEntity(selectedEntity.id)}
+                size="sm"
+                type="button"
+                variant="secondary"
+              >
+                Create Action
+              </Button>
+              {linkedCaseId ? (
+                <Button
+                  className="bg-emerald-700 text-white hover:bg-emerald-800"
+                  onClick={onPromoteSelectedEntity}
+                  disabled={promotingSourceId === selectedEntity.id}
+                  size="sm"
+                  type="button"
+                >
+                  {promotingSourceId === selectedEntity.id ? "Promoting..." : "Promote to Case"}
+                </Button>
+              ) : null}
+              <Button
+                onClick={onDeleteSelectedEntity}
+                size="sm"
+                type="button"
+                variant="destructive"
+              >
+                Delete
+              </Button>
             </div>
           </CardContent>
         </Card>

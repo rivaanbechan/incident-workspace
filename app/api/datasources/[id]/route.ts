@@ -9,6 +9,23 @@ type RouteContext = {
   }>
 }
 
+export async function GET(_request: Request, context: RouteContext) {
+  const authResult = await requireApiOrgPermission("manage_integrations")
+
+  if (authResult.error) {
+    return authResult.error
+  }
+
+  const { id } = await context.params
+  const datasource = await getStoredDatasourceById(id)
+
+  if (!datasource) {
+    return NextResponse.json({ error: "Datasource not found." }, { status: 404 })
+  }
+
+  return NextResponse.json(datasource)
+}
+
 export async function DELETE(_request: Request, context: RouteContext) {
   const authResult = await requireApiOrgPermission("manage_integrations")
 

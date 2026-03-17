@@ -130,10 +130,26 @@ export function useCasePromotion({
   }
 
   const promoteSelectedEntityToCase = () => {
-    if (
-      !selectedEntity ||
-      (selectedEntity.type !== "incidentCard" && selectedEntity.type !== "note")
-    ) {
+    if (!selectedEntity) {
+      return
+    }
+
+    if (selectedEntity.type === "reasoning") {
+      void persistCaseRecord(selectedEntity.id, {
+        kind: "finding",
+        payload: {
+          agentName: selectedEntity.agentName,
+          narrative: selectedEntity.narrative ?? "",
+        },
+        relatedEntities: [],
+        sourceType: "note",
+        summary: selectedEntity.narrative?.split("\n")[0]?.trim() || "Agent analysis.",
+        title: `${selectedEntity.agentName} — Agent Report`,
+      })
+      return
+    }
+
+    if (selectedEntity.type !== "incidentCard" && selectedEntity.type !== "note") {
       return
     }
 

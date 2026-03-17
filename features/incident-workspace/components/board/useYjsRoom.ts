@@ -43,6 +43,7 @@ type UseYjsRoomCallbacks = {
 type UseYjsRoomArgs = {
   callbacks: UseYjsRoomCallbacks
   connectionsRef: React.MutableRefObject<Y.Array<string> | null>
+  docRef: React.MutableRefObject<Y.Doc | null>
   entityMapRef: React.MutableRefObject<Y.Map<string> | null>
   incidentActionsRef: React.MutableRefObject<Y.Array<string> | null>
   incidentLogRef: React.MutableRefObject<Y.Array<string> | null>
@@ -55,6 +56,7 @@ type UseYjsRoomArgs = {
 export function useYjsRoom({
   callbacks,
   connectionsRef,
+  docRef,
   entityMapRef,
   incidentActionsRef,
   incidentLogRef,
@@ -125,6 +127,7 @@ export function useYjsRoom({
     const incidentActionsList = doc.getArray<string>("incident-actions")
     const metaMap = doc.getMap<string>("meta")
 
+    docRef.current = doc
     entityMapRef.current = entityMap
     connectionsRef.current = connectionsList
     incidentLogRef.current = incidentLogEntries
@@ -301,6 +304,7 @@ export function useYjsRoom({
       provider.awareness.setLocalState(null)
       provider.destroy()
       doc.destroy()
+      docRef.current = null
       entityMapRef.current = null
       connectionsRef.current = null
       incidentActionsRef.current = null
@@ -311,6 +315,7 @@ export function useYjsRoom({
   }, [
     collabToken,
     connectionsRef,
+    docRef,
     entityMapRef,
     incidentActionsRef,
     incidentLogRef,

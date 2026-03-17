@@ -10,10 +10,19 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import type {
+  DatasourceConfigPayload,
   DatasourceConnectionStatus,
   DatasourceDefinition,
   DatasourceInstallation,
+  StoredDatasourceInstallation,
 } from "@/lib/datasources"
 import { formatTimestamp } from "@/lib/ui/formatters"
 
@@ -35,9 +44,12 @@ function slugify(value: string) {
 function createEmptyForm(vendor = "splunk") {
   return {
     baseUrl: "",
+    defaultModel: "",
     enabled: true,
     id: "",
+    maxConcurrent: 1,
     skipTlsVerify: false,
+    supportsToolCalling: false,
     title: "",
     token: "",
     vendor,
@@ -61,6 +73,8 @@ export function DatasourceAdminPanel() {
   const [isSaving, setIsSaving] = useState(false)
   const [isTesting, setIsTesting] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [instanceConfig, setInstanceConfig] = useState<DatasourceConfigPayload | null>(null)
+  const [availableModels, setAvailableModels] = useState<string[]>([])
 
   const selectedDefinition =
     definitions.find((definition) => definition.vendor === selectedVendor) ?? null
@@ -115,21 +129,57 @@ export function DatasourceAdminPanel() {
   useEffect(() => {
     if (selectedInstance) {
       setEditorMode("edit")
+      setInstanceConfig(null)
+      setAvailableModels([])
       setForm({
         baseUrl: selectedInstance.baseUrl,
+        defaultModel: "",
         enabled: selectedInstance.enabled,
         id: selectedInstance.id,
+        maxConcurrent: 1,
         skipTlsVerify: selectedInstance.skipTlsVerify ?? false,
+        supportsToolCalling: false,
         title: selectedInstance.title,
         token: "",
         vendor: selectedInstance.vendor,
       })
       setConnectionStatus(null)
       setStatus(`Editing datasource "${selectedInstance.title}".`)
+
+      void apiRequest<StoredDatasourceInstallation>(`/api/datasources/${selectedInstance.id}`)
+        .then(async (stored) => {
+          setInstanceConfig(stored.config)
+          const savedModel =
+            typeof stored.config.defaultModel === "string" ? stored.config.defaultModel : ""
+          setForm((current) => ({
+            ...current,
+            defaultModel: savedModel,
+            maxConcurrent:
+              typeof stored.config.maxConcurrent === "number" ? stored.config.maxConcurrent : 1,
+            supportsToolCalling: stored.config.supportsToolCalling === true,
+          }))
+
+          const baseUrl = stored.baseUrl.trim()
+          if (baseUrl) {
+            try {
+              const result = await apiRequest<{ models: string[] }>(
+                `/api/datasources/models?baseUrl=${encodeURIComponent(baseUrl)}`,
+              )
+              setAvailableModels(result.models)
+            } catch {
+              // Ollama may be unreachable — fall back to text input
+            }
+          }
+        })
+        .catch(() => {
+          // config fields will stay empty — server-side preserves existing values on save
+        })
       return
     }
 
     setEditorMode("create")
+    setInstanceConfig(null)
+    setAvailableModels([])
     setForm(createEmptyForm(selectedVendor))
     setConnectionStatus(null)
     setStatus(
@@ -167,7 +217,10 @@ export function DatasourceAdminPanel() {
         body: JSON.stringify({
           baseUrl: form.baseUrl,
           config: {
+            defaultModel: form.defaultModel,
+            maxConcurrent: form.maxConcurrent,
             skipTlsVerify: form.skipTlsVerify,
+            supportsToolCalling: form.supportsToolCalling,
             token: form.token,
           },
           enabled: form.enabled,
@@ -195,9 +248,9 @@ export function DatasourceAdminPanel() {
   }
 
   const handleTest = async () => {
-    const targetId = selectedInstance?.id || form.id.trim()
+    const isLlm = selectedDefinition?.category === "llm"
 
-    if (!targetId) {
+    if (!selectedInstance && !isLlm) {
       setStatus("Save the datasource instance before testing it.")
       return
     }
@@ -205,13 +258,39 @@ export function DatasourceAdminPanel() {
     try {
       setIsTesting(true)
       setStatus("Testing datasource connection...")
-      const result = await apiRequest<DatasourceConnectionStatus>(
-        `/api/datasources/${targetId}/test`,
-        { method: "POST" },
-      )
 
-      setConnectionStatus(result)
-      setStatus("Datasource connection test passed.")
+      if (isLlm) {
+        const baseUrl = form.baseUrl.trim()
+        if (!baseUrl) {
+          setStatus("Enter a Base URL before testing.")
+          return
+        }
+        const result = await apiRequest<{ models: string[] }>(
+          `/api/datasources/models?baseUrl=${encodeURIComponent(baseUrl)}`,
+        )
+        setAvailableModels(result.models)
+        const currentModel = form.defaultModel
+        if (!currentModel || !result.models.includes(currentModel)) {
+          updateForm("defaultModel", result.models[0] ?? "")
+        }
+        const modelList = result.models.slice(0, 4).join(", ")
+        const suffix = result.models.length > 4 ? ` (+${result.models.length - 4} more)` : ""
+        setConnectionStatus({
+          checkedAt: new Date().toISOString(),
+          message: result.models.length > 0
+            ? `Connected. Available models: ${modelList}${suffix}.`
+            : "Connected. No models found — pull one with `ollama pull <model>`.",
+          ok: true,
+        })
+        setStatus("Connection test passed.")
+      } else {
+        const result = await apiRequest<DatasourceConnectionStatus>(
+          `/api/datasources/${selectedInstance!.id}/test`,
+          { method: "POST" },
+        )
+        setConnectionStatus(result)
+        setStatus("Datasource connection test passed.")
+      }
     } catch (error) {
       setConnectionStatus(null)
       setStatus(error instanceof Error ? error.message : "Datasource connection test failed.")
@@ -432,6 +511,42 @@ export function DatasourceAdminPanel() {
                 />
               </FormField>
 
+              {selectedDefinition?.category === "llm" ? (
+                <div className="grid gap-4 lg:grid-cols-[1fr_auto]">
+                  <FormField htmlFor="default-model" label="Default model">
+                    <Select
+                      disabled={availableModels.length === 0}
+                      onValueChange={(value) => updateForm("defaultModel", value)}
+                      value={form.defaultModel}
+                    >
+                      <SelectTrigger id="default-model">
+                        <SelectValue
+                          placeholder={
+                            isTesting ? "Loading models..." : "Test connection to load models"
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableModels.map((model) => (
+                          <SelectItem key={model} value={model}>
+                            {model}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormField>
+                  <FormField htmlFor="max-concurrent" label="Max concurrent">
+                    <Input
+                      id="max-concurrent"
+                      min={1}
+                      onChange={(event) => updateForm("maxConcurrent", Number(event.target.value))}
+                      type="number"
+                      value={form.maxConcurrent}
+                    />
+                  </FormField>
+                </div>
+              ) : null}
+
               <FormField
                 htmlFor="token"
                 label={<>Token {selectedInstance ? "(enter only to rotate)" : ""}</>}
@@ -462,6 +577,18 @@ export function DatasourceAdminPanel() {
                 />
                 Skip TLS certificate verification
               </label>
+
+              {selectedDefinition?.category === "llm" ? (
+                <label className="flex items-center gap-3 text-sm font-medium text-foreground">
+                  <Checkbox
+                    checked={form.supportsToolCalling}
+                    onCheckedChange={(checked) =>
+                      updateForm("supportsToolCalling", checked === true)
+                    }
+                  />
+                  Supports tool calling
+                </label>
+              ) : null}
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -473,7 +600,12 @@ export function DatasourceAdminPanel() {
                     : "Save Changes"}
               </Button>
               <Button
-                disabled={isTesting || !(selectedInstance || form.id.trim())}
+                disabled={
+                  isTesting ||
+                  (selectedDefinition?.category === "llm"
+                    ? !form.baseUrl.trim()
+                    : !selectedInstance)
+                }
                 onClick={handleTest}
                 type="button"
                 variant="secondary"

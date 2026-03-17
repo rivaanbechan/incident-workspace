@@ -242,6 +242,26 @@ Read first:
 
 ---
 
+## File size and structure rules
+
+**No file should exceed 300 lines.** If a file is approaching this limit, stop and extract before continuing. This is a hard rule, not a soft guideline.
+
+**One responsibility per file.** A file that handles DB queries should not also contain business logic. A component that renders UI should not also contain data fetching. If you find yourself writing "and also..." when describing what a file does, split it.
+
+**Components must be extracted before they become monoliths.** If a component's JSX has a clearly distinct section — a form, a list, a panel, a toolbar — extract it as a named sub-component before the parent file grows unwieldy. Reference the BoardCanvas refactor (1,017 → 180 lines via 6 extracted sub-components) as the pattern.
+
+**A task is not complete if it produces a file over 300 lines.** Extraction is part of the task, not a follow-up.
+
+---
+
+## UI and component standards
+
+- **Use reusable shell components first.** Before building any new UI element, check `components/shell/` for existing components (`EmptyState`, `FormField`, `StatCard`, `TonedCard`, `MiniStatGrid`, `TimelineEntry`). Check feature-scoped components (`features/cases/components/Section`, `features/integrations/components/SelectableCard`) before building new ones.
+- **shadcn/ui for all UI primitives.** All buttons, cards, inputs, selects, badges, and dialogs must use shadcn components. Do not write raw `<button>` or `<input>` elements in feature UI. Do not introduce additional UI libraries.
+- **Tailwind for layout and spacing.** New feature components must use Tailwind utility classes, not inline styles. Inline styles are acceptable only in board canvas components where pixel-precise transforms and dynamic values are required (e.g. camera transforms, entity positioning).
+
+---
+
 ## What not to do
 
 - Do not import `features/incident-workspace/` internals from any other feature module
@@ -250,4 +270,6 @@ Read first:
 - Do not write to `BoardCanvas` props for new board features — use context instead
 - Do not put business logic in `app/` route files — keep them as thin mounters
 - Do not use vitest globals without explicit imports in test files
+- Do not use raw `<button>`, `<input>`, or `<select>` elements in feature UI — use shadcn components
+- Do not introduce new UI libraries — shadcn/ui + Tailwind is the full UI stack
 - **Do not call `awareness.setLocalStateField` inside pointer/wheel/scroll handlers without a time-gate.** Unthrottled awareness writes at 60–120 Hz broadcast to every participant and trigger cascading React re-renders. Use a 50 ms timestamp gate (see `useDragAndResize.ts`). On the receive side, batch `setPresence` calls with `requestAnimationFrame` so React re-renders are capped at 60 fps regardless of incoming message rate (see `useYjsRoom.ts`).

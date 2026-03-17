@@ -6,6 +6,7 @@ export {
 export type {
   DatasourceAdapter,
   DatasourceCapabilities,
+  DatasourceCategory,
   DatasourceConfigurationInput,
   DatasourceConfigPayload,
   DatasourceConnectionStatus,
@@ -15,6 +16,10 @@ export type {
   DatasourceSearchResult,
   DatasourceSearchRow,
   DatasourceVendorId,
+  EnrichmentDatasource,
+  EnrichmentDatasourceConfig,
+  LLMDatasource,
+  LLMDatasourceConfig,
   SavedDatasourceResultSet,
   StoredDatasourceInstallation,
 } from "@/lib/datasources/types"
