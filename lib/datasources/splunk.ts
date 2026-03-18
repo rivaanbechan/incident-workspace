@@ -608,6 +608,7 @@ export const splunkAdapter: DatasourceAdapter = {
       supportsHealthcheck: true,
       supportsSearch: true,
     },
+    category: "search",
     description:
       "Global Splunk datasource for analyst-driven search, result review, and artifact promotion.",
     id: "splunk",

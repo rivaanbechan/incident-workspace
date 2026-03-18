@@ -10,11 +10,23 @@ export type HuntEdgeKind =
   | "source-to-destination"
   | "triggered-alert"
 
+export type HuntNodeOrigin = "expanded" | "original"
+
+export type ColumnMapping = {
+  destColumn: string
+  labelColumn: string | null
+  sourceColumn: string
+}
+
 export type HuntGraphNode = {
   color: string
+  depth: number
+  discoveredAt: number | null
   id: string
   kind: HuntNodeKind
   label: string
+  origin: HuntNodeOrigin
+  parentId: string | null
   size: number
   summary?: string
   x?: number
@@ -23,6 +35,7 @@ export type HuntGraphNode = {
 
 export type HuntGraphEdge = {
   color: string
+  discoveredAt: number | null
   id: string
   kind: HuntEdgeKind
   label: string
@@ -49,6 +62,8 @@ export type HuntGraphFilters = {
 export type HuntGraphSnapshot = {
   activeSavedViewId: string | null
   adapterId: string | null
+  columnMapping: ColumnMapping | null
+  datasourceId: string | null
   edges: HuntGraphEdge[]
   filters: HuntGraphFilters
   nodes: HuntGraphNode[]
@@ -56,6 +71,7 @@ export type HuntGraphSnapshot = {
   pinnedEdgeIds: string[]
   pinnedNodeIds: string[]
   query: string
+  timeField: string | null
 }
 
 export type SavedHuntGraphViewRecord = {
@@ -80,6 +96,7 @@ export type HuntGraphAdapterQuery = {
 }
 
 export type HuntGraphAdapterExpansion = {
+  columnMapping: ColumnMapping | null
   currentEdges: HuntGraphEdge[]
   currentNodes: HuntGraphNode[]
   node: HuntGraphNode
@@ -105,4 +122,3 @@ export type HuntGraphAdapter = {
   id: string
   title: string
 }
-

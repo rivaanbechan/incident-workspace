@@ -18,12 +18,6 @@ const HuntGraphRoomClient = dynamic(
 
 type Props = {
   currentUser: CaseAccessContext
-  initialEntityFocus: {
-    id: string
-    kind: string | null
-    label: string
-    value: string
-  } | null
   initialSavedViews: SavedHuntGraphViewRecord[]
   initialView: SavedHuntGraphViewDetail | null
   roomId: string

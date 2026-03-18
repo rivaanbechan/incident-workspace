@@ -7,19 +7,12 @@ import { appModules } from "@/lib/modules/registry"
 
 type HuntGraphRoomPageProps = {
   currentUser: CaseAccessContext
-  initialEntityFocus?: {
-    id: string
-    kind: string | null
-    label: string
-    value: string
-  } | null
   initialViewId?: string | null
   roomId: string
 }
 
 export async function HuntGraphRoomPage({
   currentUser,
-  initialEntityFocus,
   initialViewId,
   roomId,
 }: HuntGraphRoomPageProps) {
@@ -39,7 +32,6 @@ export async function HuntGraphRoomPage({
     >
       <HuntGraphRoomClientLoader
         currentUser={currentUser}
-        initialEntityFocus={initialEntityFocus ?? null}
         initialSavedViews={initialSavedViews}
         initialView={initialView}
         roomId={roomId}

@@ -5,7 +5,7 @@ type SelectableCardProps = {
   children: ReactNode
   isSelected: boolean
   onClick: () => void
-  /** "lg" — rounded-3xl p-6 with shadow (vendor picker cards). "sm" — rounded-2xl p-4 (instance list cards). */
+  /** "lg" — rounded-3xl p-5 (vendor picker cards). "sm" — rounded-2xl p-4 (instance list cards). */
   size?: "sm" | "lg"
   className?: string
 }
@@ -24,15 +24,17 @@ export function SelectableCard({
   return (
     <button
       className={cn(
-        "border bg-card text-left transition",
+        "w-full border bg-card text-left transition-all duration-150",
         size === "lg"
-          ? "rounded-3xl p-6 shadow-sm hover:border-primary/30 hover:bg-muted/80"
-          : "rounded-2xl p-4 hover:border-primary/20",
+          ? "rounded-2xl p-5 hover:shadow-md"
+          : "rounded-xl p-4 hover:bg-muted/50",
         isSelected
           ? size === "lg"
-            ? "border-primary/40 bg-gradient-to-b from-card to-muted"
-            : "border-primary/40 bg-muted"
-          : "border-border/70" + (size === "sm" ? " bg-card" : ""),
+            ? "border-primary/60 shadow-sm ring-1 ring-primary/20 bg-card"
+            : "border-primary/50 bg-muted/40 ring-1 ring-primary/15"
+          : size === "lg"
+            ? "border-border/60 hover:border-border"
+            : "border-border/50 hover:border-border/80",
         className,
       )}
       onClick={onClick}

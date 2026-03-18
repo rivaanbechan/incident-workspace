@@ -13,9 +13,9 @@ export async function IntegrationsPage() {
     <AppShell currentUser={currentUser} modules={appModules} platformOverview={platformOverview} title="Integrations">
       <div className="grid gap-6">
         <PageHeader
-          eyebrow="Global Datasources"
-          title="Platform integrations"
-          description="Configure datasource instances once for the whole app. Investigation rooms can use these integrations, but rooms should not own connector credentials or settings."
+          eyebrow="Global configuration"
+          title="Integrations"
+          description="Configure data sources, AI models, and enrichment services once for the whole platform. Investigation rooms query these integrations but never own credentials."
         />
         <DatasourceAdminPanel />
       </div>

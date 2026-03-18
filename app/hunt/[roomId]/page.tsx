@@ -6,10 +6,6 @@ type HuntGraphPageProps = {
     roomId: string
   }>
   searchParams: Promise<{
-    entityId?: string
-    entityKind?: string
-    entityLabel?: string
-    entityValue?: string
     view?: string
   }>
 }
@@ -20,22 +16,12 @@ export default async function HuntGraphPage({
 }: HuntGraphPageProps) {
   const { roomId } = await params
   const currentUser = await requireCasePermissionByRoomId(roomId, "view")
-  const { entityId, entityKind, entityLabel, entityValue, view } = await searchParams
+  const { view } = await searchParams
 
   return (
     <HuntGraphRoomPage
-      initialEntityFocus={
-        entityId && entityLabel
-          ? {
-              id: entityId,
-              kind: entityKind ?? null,
-              label: entityLabel,
-              value: entityValue ?? entityLabel,
-            }
-          : null
-      }
-      initialViewId={view ?? null}
       currentUser={currentUser}
+      initialViewId={view ?? null}
       roomId={roomId}
     />
   )
