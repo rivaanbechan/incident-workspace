@@ -12,6 +12,7 @@ import type {
 } from "@/lib/auth/permissions"
 import { hasCasePermission, hasOrgPermission } from "@/lib/auth/permissions"
 import { getAuthenticatedUserById, getCaseMembership } from "@/lib/db/auth"
+import { getPermissionsForRole } from "@/lib/db/roles"
 import { getInvestigationByRoomId } from "@/lib/db/investigations"
 
 type CollabTokenPayload = {
@@ -178,6 +179,35 @@ export async function requireApiCasePermissionByCaseId(
   }
 
   return { access, error: null }
+}
+
+export async function resolveOrgPermissions(user: AuthenticatedUser): Promise<Set<string>> {
+  const resolved = await getPermissionsForRole(user.orgId, user.orgRole)
+  const granted = new Set<string>()
+
+  for (const [permId, entry] of Object.entries(resolved)) {
+    if (entry.granted) {
+      granted.add(permId)
+    }
+  }
+
+  return granted
+}
+
+export async function requireApiAdminPermission(permissionId: string) {
+  const user = await getCurrentUser()
+
+  if (!user) {
+    return { error: unauthorizedJson(), user: null }
+  }
+
+  const permissions = await resolveOrgPermissions(user)
+
+  if (!permissions.has(permissionId)) {
+    return { error: forbiddenJson(), user: null }
+  }
+
+  return { error: null, user }
 }
 
 export async function requireApiCasePermissionByRoomId(

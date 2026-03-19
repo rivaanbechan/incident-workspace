@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/native-select"
+import { AdminTabNav } from "@/features/admin/components/AdminTabNav"
 import { createOrganizationUserAction, updateOrganizationRoleAction } from "@/features/admin/actions"
 import { ORG_ROLE_LABELS, type AuthenticatedUser, type OrgRole } from "@/lib/auth/permissions"
 import { requireOrgPermission } from "@/lib/auth/access"
@@ -38,6 +39,7 @@ export default async function AdminPage() {
   return (
     <AppShell currentUser={currentUser} modules={appModules} platformOverview={platformOverview} title="Admin">
       <div className="grid gap-6">
+        <AdminTabNav />
         <PageHeader
           eyebrow="Organization Access"
           title="User and role management"
